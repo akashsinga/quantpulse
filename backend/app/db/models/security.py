@@ -1,0 +1,32 @@
+from sqlalchemy import Column, String, Boolean, DateTime, Date, ForeignKey, UUID, UniqueConstraint
+from sqlalchemy.sql import func
+from sqlalchemy.orm import relationship
+import uuid
+
+from app.db.session import Base
+
+class Security(Base):
+    __tablename__ = "securities"
+    __table_args__ = (UniqueConstraint("symbol", "exchange_id", name="uq_symbol_exchange"),)
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    symbol = Column(String(20), nullable=False, index=True)
+    name = Column(String(255), nullable=False)
+    exchange_id = Column(UUID(as_uuid=True), ForeignKey("exchanges.id"), nullable=False)
+    security_type = Column(String(20), nullable=False)  # stock, etf, index, etc.
+    sector = Column(String(100))
+    industry = Column(String(100))
+    is_active = Column(Boolean, default=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+    # Relationships
+    exchange = relationship("Exchange", back_populates="securities")
+    daily_data = relationship("OHLCVDaily", back_populates="security")
+    weekly_data = relationship("OHLCVWeekly", back_populates="security")
+    indicators = relationship("TechnicalIndicator", back_populates="security")
+    strategy_securities = relationship("StrategySecurity", back_populates="security")
+    signals = relationship("Signal", back_populates="security")
+    backtest_trades = relationship("BacktestTrade", back_populates="security")
+    ml_predictions = relationship("MLPrediction", back_populates="security")
+    positions = relationship("Position", back_populates="security")

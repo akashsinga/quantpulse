@@ -21,6 +21,7 @@ class Settings(BaseSettings):
 
     # Database connection
     DATABASE_URL: str = os.getenv("DATABASE_URL", "postgresql+psycopg2://postgres:password@localhost:5432/quantpulse")
+    ASYNC_DATABASE_URL = os.getenv("ASYNC_DATABASE_URL", "postgresql+asyncpg://postgres:password@localhost:5432/quantpulse")
 
     # Authentication
     SECRET_KEY: str = os.getenv("SECRET_KEY", "quant_pulse_2025")
@@ -52,6 +53,7 @@ class Settings(BaseSettings):
     DB_MAX_OVERFLOW: int = int(os.getenv("DB_MAX_OVERFLOW", "30"))
     DB_POOL_TIMEOUT: int = int(os.getenv("DB_POOL_TIMEOUT", "60"))
     DB_POOL_RECYCLE: int = int(os.getenv("DB_POOL_RECYCLE", "1800"))  # 30 minutes
+    DB_ECHO: bool = os.getenv("SQL_ECHO", "False").lower() == "true"
 
     # API Settings
     DHAN_SCRIP_MASTER_URL: str = os.getenv("DHAN_SCRIP_MASTER_URL", "https://images.dhan.co/api-data/api-scrip-master.csv")
