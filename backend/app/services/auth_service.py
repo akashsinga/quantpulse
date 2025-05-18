@@ -2,11 +2,11 @@
 
 from datetime import datetime, timedelta
 from typing import Optional
-from db.session import Session
+from sqlalchemy.orm import Session
 from jose import jwt
 from passlib.context import CryptContext
-from config import settings
-from db.models.user import User
+from app.config import settings
+from app.db.models import User
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
