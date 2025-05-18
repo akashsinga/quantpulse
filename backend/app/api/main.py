@@ -6,11 +6,18 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 
-from api.middlewares.logging import LoggingMiddleware
-from api.middlewares.request import RequestMiddleware
+from app.api.middlewares.logging import LoggingMiddleware
+from app.api.middlewares.request import RequestMiddleware
 
-from config import settings
+from app.config import settings
+from app.api.v1 import auth
+
+import os
+import sys
+
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 from utils.logger import get_logger
+
 
 logger = get_logger(__name__)
 
@@ -19,7 +26,7 @@ logger = get_logger(__name__)
 async def lifespan(app: FastAPI):
     # Startup: Initialize features, connections
     logger.info(f"Starting {settings.APP_NAME} API Server")
-    
+
     logger.info(f"{settings.APP_NAME} Started")
 
     yield
@@ -37,6 +44,11 @@ app = FastAPI(title=settings.APP_NAME, description="Predictive Market Analytics 
 app.add_middleware(CORSMiddleware, allow_origins=settings.CORS_ORIGINS, allow_credentials=True, allow_methods=["*"], allow_headers=["*"], expose_headers=["Content-Type", "Authorization"], max_age=86400)
 app.add_middleware(LoggingMiddleware)
 app.add_middleware(RequestMiddleware)
+
+
+# Routers
+app.include_router(auth.router, prefix=f"{settings.API_V1_PREFIX}/auth", tags=["auth"])
+
 
 @app.get("/", tags=["root"])
 async def root():

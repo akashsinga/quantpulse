@@ -11,7 +11,7 @@ from schemas.auth import Token
 router = APIRouter()
 
 
-@router.post("/token", response_model=Token)
+@router.post("/login", response_model=Token)
 async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(), db=Depends(get_db)):
     user = authenticate_user(db, form_data.email, form_data.password)
 
