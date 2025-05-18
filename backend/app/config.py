@@ -21,7 +21,7 @@ class Settings(BaseSettings):
 
     # Database connection
     DATABASE_URL: str = os.getenv("DATABASE_URL", "postgresql+psycopg2://postgres:password@localhost:5432/quantpulse")
-    ASYNC_DATABASE_URL = os.getenv("ASYNC_DATABASE_URL", "postgresql+asyncpg://postgres:password@localhost:5432/quantpulse")
+    ASYNC_DATABASE_URL: str = os.getenv("ASYNC_DATABASE_URL", "postgresql+asyncpg://postgres:password@localhost:5432/quantpulse")
 
     # Authentication
     SECRET_KEY: str = os.getenv("SECRET_KEY", "quant_pulse_2025")
