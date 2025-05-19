@@ -8,6 +8,9 @@ from app.db.models.exchange import Exchange
 # Import models with dependencies on the above
 from app.db.models.security import Security
 
+# Import derivative related models
+from app.db.models.derivatives import Future
+
 # Import time-series data models
 from app.db.models.ohlcv_daily import OHLCVDaily
 from app.db.models.ohlcv_weekly import OHLCVWeekly
@@ -37,6 +40,7 @@ __all__ = [
     'User',
     'Exchange',
     'Security',
+    'Future',
     'OHLCVDaily',
     'OHLCVWeekly',
     'TechnicalIndicator',

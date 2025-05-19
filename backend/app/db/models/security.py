@@ -1,19 +1,30 @@
-from sqlalchemy import Column, String, Boolean, DateTime, Date, ForeignKey, UUID, UniqueConstraint
+from sqlalchemy import Column, String, Boolean, DateTime, Date, ForeignKey, UUID, UniqueConstraint, Integer, CheckConstraint
 from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
 import uuid
+from enum import Enum as PythonEnum
 
 from app.db.session import Base
 
+
+class SecurityType(str, PythonEnum):
+    STOCK = "stock"
+    INDEX = "index"
+    FUTURE = "future"
+    OPTION = "option"
+
+
 class Security(Base):
     __tablename__ = "securities"
-    __table_args__ = (UniqueConstraint("symbol", "exchange_id", name="uq_symbol_exchange"),)
+    __table_args__ = (UniqueConstraint("symbol", "exchange_id", name="uq_symbol_exchange"), CheckConstraint("(security_type IN ('STOCK', 'INDEX') AND futures_id IS NULL) OR (security_type = 'DERIVATIVE')", name="chk_security_type_consistency"))
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     symbol = Column(String(20), nullable=False, index=True)
     name = Column(String(255), nullable=False)
     exchange_id = Column(UUID(as_uuid=True), ForeignKey("exchanges.id"), nullable=False)
-    security_type = Column(String(20), nullable=False)  # stock, etf, index, etc.
+    security_type = Column(String(20), nullable=False)  # STOCK, INDEX, DERIVATIVE
+    segment = Column(String(20), nullable=False)  # EQUITY, CURRENCY, COMMODITY
+    external_id = Column(Integer, nullable=False, index=True)  # Dhan's Security ID
     sector = Column(String(100))
     industry = Column(String(100))
     is_active = Column(Boolean, default=True)
@@ -30,3 +41,5 @@ class Security(Base):
     backtest_trades = relationship("BacktestTrade", back_populates="security")
     ml_predictions = relationship("MLPrediction", back_populates="security")
     positions = relationship("Position", back_populates="security")
+    futures = relationship("Future", back_populates="security", uselist=False, foreign_keys="Future.security_id")
+    derivative_underlyings = relationship("Security", secondary="futures", primaryjoin="Security.id==Future.security_id", secondaryjoin="Security.id==Future.underlying_id", backref="derivatives")
