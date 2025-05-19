@@ -41,5 +41,9 @@ class Security(Base):
     backtest_trades = relationship("BacktestTrade", back_populates="security")
     ml_predictions = relationship("MLPrediction", back_populates="security")
     positions = relationship("Position", back_populates="security")
+
+    # Fixed relationships with proper overlaps parameters
     futures = relationship("Future", back_populates="security", uselist=False, foreign_keys="Future.security_id")
-    derivative_underlyings = relationship("Security", secondary="futures", primaryjoin="Security.id==Future.security_id", secondaryjoin="Security.id==Future.underlying_id", backref="derivatives")
+
+    # Add overlaps parameters to fix the SQLAlchemy warnings
+    derivative_underlyings = relationship("Security", secondary="futures", primaryjoin="Security.id==Future.security_id", secondaryjoin="Security.id==Future.underlying_id", backref="derivatives", overlaps="futures")

@@ -28,7 +28,7 @@ class ExpiryMonth(str, PythonEnum):
 
 class Future(Base):
     __tablename__ = "futures"
-    __table_args__  = (UniqueConstraint("underlying_id", "contract_month", "expiration_date", name="uq_future_contract"), Index("idx_futures_expiration", "expiration_date"), Index('idx_future_underlying', 'underlying_id'))
+    __table_args__ = (UniqueConstraint("underlying_id", "contract_month", "expiration_date", name="uq_future_contract"), Index("idx_futures_expiration", "expiration_date"), Index("idx_future_underlying", "underlying_id"))
 
     security_id = Column(UUID(as_uuid=True), ForeignKey("securities.id", ondelete="CASCADE"), primary_key=True)
     underlying_id = Column(UUID(as_uuid=True), ForeignKey("securities.id"), nullable=False)
@@ -44,7 +44,7 @@ class Future(Base):
 
     previous_contract_id = Column(UUID(as_uuid=True), ForeignKey("futures.security_id"), nullable=True)
 
-    # Relationships
-    security = relationship("Security", foreign_keys=[security_id], back_populates="futures")
-    underlying = relationship("Security", foreign_keys=[underlying_id])
+    # Relationships with proper overlaps parameters
+    security = relationship("Security", foreign_keys=[security_id], back_populates="futures", overlaps="derivative_underlyings,derivatives")
+    underlying = relationship("Security", foreign_keys=[underlying_id], overlaps="derivative_underlyings,derivatives")
     previous_contract = relationship("Future", remote_side=[security_id], foreign_keys=[previous_contract_id], uselist=False, backref="next_contract")
