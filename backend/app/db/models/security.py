@@ -19,7 +19,7 @@ class Security(Base):
     __table_args__ = (UniqueConstraint("symbol", "exchange_id", name="uq_symbol_exchange"), CheckConstraint("(security_type IN ('STOCK', 'INDEX') AND futures_id IS NULL) OR (security_type = 'DERIVATIVE')", name="chk_security_type_consistency"))
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    symbol = Column(String(20), nullable=False, index=True)
+    symbol = Column(String(100), nullable=False, index=True)
     name = Column(String(255), nullable=False)
     exchange_id = Column(UUID(as_uuid=True), ForeignKey("exchanges.id"), nullable=False)
     security_type = Column(String(20), nullable=False)  # STOCK, INDEX, DERIVATIVE
