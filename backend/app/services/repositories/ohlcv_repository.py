@@ -5,7 +5,7 @@ from typing import List, Dict, Tuple, Optional, Any, Union
 from sqlalchemy import text, func, and_, or_
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session
-from app.db.session import get_db
+from app.db.session import get_db, SessionLocal
 from app.db.models.ohlcv_daily import OHLCVDaily
 from app.db.models.security import Security
 from app.config import settings
@@ -118,8 +118,8 @@ class OHLCVRepository:
                         SELECT time::date as record_date
                         FROM ohlcv_daily
                         WHERE security_id = :security_id
-                        AND time >= :start_date
-                        AND time <= :end_date
+                          AND time >= :start_date
+                          AND time <= :end_date
                         GROUP BY record_date
                         ORDER BY record_date
                     ),
@@ -142,7 +142,8 @@ class OHLCVRepository:
                 for row in result:
                     gap = {"start": row[0] + timedelta(days=1), "end": row[1]}  # Start of gap is day after last record  # End of gap is day before next record
                     gaps.append(gap)
-                    logger.info(f"Found {len(gaps)} data gaps for security {security_id}")
+
+                logger.info(f"Found {len(gaps)} data gaps for security {security_id}")
                 return gaps
 
             except Exception as e:

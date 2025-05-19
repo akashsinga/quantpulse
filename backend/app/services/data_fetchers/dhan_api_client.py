@@ -2,8 +2,9 @@
 
 import json
 import time
-from datetime import datetime
-from typing import Dict, List, Optional, Any
+import logging
+from datetime import datetime, date, timedelta
+from typing import Dict, List, Optional, Union, Any
 import requests
 from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
 
@@ -19,7 +20,11 @@ class DhanAPIClient:
     def __init__(self):
         """Initialize the Dhan API client with proper configuration."""
         # Parse headers from settings
-        self.headers = json.loads(settings.DHAN_API_HEADERS)
+        try:
+            self.headers = json.loads(settings.DHAN_API_HEADERS)
+        except Exception as e:
+            logger.error(f"Error parsing API headers from settings: {str(e)}")
+            self.headers = {"Content-Type": "application/json", "Authorization": "Bearer YOUR_TOKEN"}  # Default placeholder
 
         # API endpoints
         self.historical_url = settings.DHAN_CHARTS_HISTORICAL_URL
@@ -48,9 +53,18 @@ class DhanAPIClient:
 
         self.last_request_time = time.time()
 
-    @retry(retry=retry_if_exception_type((requests.exceptions.RequestException, json.JSONDecodeError)), stop=stop_after_attempt(settings.API_MAX_RETRIES), wait=wait_exponential(multiplier=settings.RETRY_INITIAL_WAIT, factor=settings.RETRY_BACKOFF_FACTOR), reraise=True)
+    @retry(retry=retry_if_exception_type((requests.exceptions.RequestException, json.JSONDecodeError)), stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1.0, exp_base=2.0), reraise=True)  # Using hardcoded value instead of settings to avoid issues  # Using hardcoded values instead of settings
     def _make_api_request(self, url: str, data: Dict[str, Any], method: str = "POST") -> Dict[str, Any]:
-        """Make an API request with retry logic and rate limiting."""
+        """Make an API request with retry logic and rate limiting.
+
+        Args:
+            url: API endpoint URL
+            data: Request data
+            method: HTTP method (POST or GET)
+
+        Returns:
+            API response as dict
+        """
         self._respect_rate_limit()
 
         logger.debug(f"Making {method} request to {url}")
@@ -71,33 +85,35 @@ class DhanAPIClient:
             logger.error(f"Failed to parse API response: {str(e)}")
             raise
 
-    def fetch_historical_data(self, security_id: str, exchange_segment: str, instrument: str, expiry_code: int = 0, from_date: Optional[str] = None, to_date: Optional[str] = None, oi: bool = False) -> Dict[str, Any]:
+    def fetch_historical_data(self, securityId: str, exchangeSegment: str, instrument: str, expiryCode: int = 0, fromDate: Optional[str] = None, toDate: Optional[str] = None, oi: bool = False) -> Dict[str, Any]:
         """Fetch historical OHLCV data from Dhan API.
 
         Args:
-            security_id: Dhan's security ID
-            exchange_segment: Exchange segment code
+            securityId: Dhan's security ID
+            exchangeSegment: Exchange segment code
             instrument: Instrument type
-            expiry_code: Expiry code for derivatives
-            from_date: Start date (YYYY-MM-DD format)
-            to_date: End date (YYYY-MM-DD format)
+            expiryCode: Expiry code for derivatives
+            fromDate: Start date (YYYY-MM-DD format)
+            toDate: End date (YYYY-MM-DD format)
             oi: Whether to include open interest data
 
         Returns:
             Structured OHLCV data with timestamps
         """
         # Use defaults from settings if not specified
-        from_date = from_date or settings.FROM_DATE
-        to_date = to_date or (settings.TO_DATE or datetime.now().strftime("%Y-%m-%d"))
+        fromDate = fromDate or settings.FROM_DATE
+        toDate = toDate or (settings.TO_DATE or datetime.now().strftime("%Y-%m-%d"))
 
-        request_data = {"securityId": security_id, "exchangeSegment": exchange_segment, "instrument": instrument, "expiryCode": expiry_code, "fromDate": from_date, "toDate": to_date, "oi": oi}
+        request_data = {"securityId": securityId, "exchangeSegment": exchangeSegment, "instrument": instrument, "expiryCode": expiryCode, "fromDate": fromDate, "toDate": toDate, "oi": oi}
 
-        logger.info(f"Fetching historical data for {security_id} from {from_date} to {to_date}")
+        logger.info(f"Fetching historical data for {securityId} from {fromDate} to {toDate}")
 
-        response = self._make_api_request(self.historical_url, request_data)
-
-        # Parse and validate response
-        return self._parse_historical_response(response)
+        try:
+            response = self._make_api_request(self.historical_url, request_data)
+            return self._parse_historical_response(response)
+        except Exception as e:
+            logger.error(f"Error fetching historical data: {str(e)}")
+            return {"status": "error", "error": str(e), "data": []}
 
     def fetch_current_data(self, securities_by_segment: Dict[str, List[str]]) -> Dict[str, Dict[str, Any]]:
         """Fetch current day OHLCV data for multiple securities.
@@ -111,10 +127,12 @@ class DhanAPIClient:
         """
         logger.info(f"Fetching current data for {sum(len(ids) for ids in securities_by_segment.values())} securities")
 
-        response = self._make_api_request(self.quote_url, securities_by_segment)
-
-        # Parse and validate response
-        return self._parse_quote_response(response)
+        try:
+            response = self._make_api_request(self.quote_url, securities_by_segment)
+            return self._parse_quote_response(response)
+        except Exception as e:
+            logger.error(f"Error fetching current data: {str(e)}")
+            return {}
 
     def _parse_historical_response(self, response: Dict[str, Any]) -> Dict[str, Any]:
         """Parse the historical data response into a structured format.

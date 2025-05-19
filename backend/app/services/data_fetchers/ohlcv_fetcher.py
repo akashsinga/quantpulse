@@ -6,9 +6,11 @@ import concurrent.futures
 from datetime import datetime, date, timedelta
 from typing import List, Dict, Tuple, Optional, Any, Union, Set
 from sqlalchemy import func
+from sqlalchemy.orm import joinedload, Session
 
-from app.db.session import get_db
+from app.db.session import get_db, SessionLocal
 from app.db.models.security import Security
+from app.db.models.exchange import Exchange
 from app.config import settings
 from utils.logger import get_logger
 from .dhan_api_client import DhanAPIClient
@@ -199,7 +201,7 @@ class OHLCVFetcher:
         return operation_result
 
     def _select_securities(self, security_ids: Optional[List[str]] = None, exchanges: Optional[List[str]] = None, segments: Optional[List[str]] = None) -> List[Security]:
-        """Select securities based on provided criteria.
+        """Select securities based on provided criteria with eager loading.
 
         If no criteria are provided, select all active securities.
 
@@ -214,7 +216,8 @@ class OHLCVFetcher:
         logger.info("Selecting securities for processing")
 
         with get_db() as db:
-            query = db.query(Security).filter(Security.is_active == True)
+            # Use joinedload to eagerly load the exchange relationship
+            query = db.query(Security).options(joinedload(Security.exchange)).filter(Security.is_active == True)
 
             # Apply security_ids filter if provided
             if security_ids:
@@ -222,7 +225,7 @@ class OHLCVFetcher:
 
             # Apply exchanges filter if provided
             if exchanges:
-                query = query.join(Security.exchange).filter(func.upper(Security.exchange.has(code=exchanges)))
+                query = query.join(Security.exchange).filter(Exchange.code.in_([code.upper() for code in exchanges]))
 
             # Apply segments filter if provided
             if segments:
@@ -231,10 +234,25 @@ class OHLCVFetcher:
             # Order by priority (in a real impl, would use trading volume or importance)
             query = query.order_by(Security.symbol)
 
+            # Execute query
             securities = query.all()
 
-            logger.info(f"Selected {len(securities)} securities")
-            return securities
+            # Create a copy of all relevant attributes to detach from session
+            detached_securities = []
+            for security in securities:
+                # Ensure exchange is accessed to load the relationship
+                if security.exchange:
+                    # Access to load
+                    exchange_code = security.exchange.code
+
+                # Add to detached list
+                detached_securities.append(security)
+
+            # Expunge all objects from session
+            db.expunge_all()
+
+            logger.info(f"Selected {len(detached_securities)} securities")
+            return detached_securities
 
     def _create_batches(self, securities: List[Security], batch_size: int) -> List[List[Security]]:
         """Split securities into processing batches.
@@ -259,18 +277,23 @@ class OHLCVFetcher:
         """
         result = {}
 
-        for security in securities:
-            # Get Dhan's exchange segment
-            exchange_segment = self.mapper.map_exchange_segment(security)
+        # Create a session for consistent mapping
+        with get_db() as db:
+            for security in securities:
+                try:
+                    # Get Dhan's exchange segment with session
+                    exchange_segment = self.mapper.map_exchange_segment(security, db)
 
-            # Get Dhan's security ID
-            security_id = str(security.external_id)
+                    # Get Dhan's security ID
+                    security_id = str(security.external_id)
 
-            # Add to the appropriate group
-            if exchange_segment not in result:
-                result[exchange_segment] = []
+                    # Add to the appropriate group
+                    if exchange_segment not in result:
+                        result[exchange_segment] = []
 
-            result[exchange_segment].append(security_id)
+                    result[exchange_segment].append(security_id)
+                except Exception as e:
+                    logger.error(f"Error grouping security {security.symbol}: {str(e)}")
 
         return result
 
@@ -312,7 +335,7 @@ class OHLCVFetcher:
         return results
 
     def _process_historical_batch(self, batch: List[Security], start_date: str, end_date: str, verbose: bool, batch_idx: int) -> Dict[str, Any]:
-        """Process a single batch of securities for historical data.
+        """Process a single batch of securities with session open throughout.
 
         Args:
             batch: List of securities in the batch
@@ -326,52 +349,54 @@ class OHLCVFetcher:
         """
         batch_results = {"batch_idx": batch_idx, "status": "completed", "securities_processed": len(batch), "securities_success": 0, "securities_error": 0, "total_records": 0, "security_results": {}, "errors": {}}
 
-        if verbose:
-            logger.info(f"Processing batch {batch_idx} with {len(batch)} securities")
+        # Create a session for the entire batch
+        with get_db() as db:
+            if verbose:
+                logger.info(f"Processing batch {batch_idx} with {len(batch)} securities")
 
-        for security in batch:
-            try:
-                # Get Dhan API parameters for this security
-                params = self.mapper.get_dhan_request_params(security)
+            for security in batch:
+                try:
+                    # Get Dhan API parameters for this security, passing the session
+                    params = self.mapper.get_dhan_request_params(security, db)
 
-                # Add date range to parameters
-                params["fromDate"] = start_date
-                params["toDate"] = end_date
-
-                if verbose:
-                    logger.debug(f"Fetching historical data for {security.symbol} with params: {params}")
-
-                # Fetch historical data from API
-                response = self.api_client.fetch_historical_data(**params)
-
-                # Check if we have valid data
-                if response.get("status") == "success" and response.get("data"):
-                    # Store data in the repository
-                    records = response.get("data", [])
-                    result = self.repository.upsert_daily_data(str(security.id), records, source="dhan_historical_api")
-
-                    # Update batch results
-                    batch_results["securities_success"] += 1
-                    batch_results["total_records"] += len(records)
-                    batch_results["security_results"][str(security.id)] = {"symbol": security.symbol, "records": len(records), "inserted": result[0], "updated": result[1]}
+                    # Add date range to parameters
+                    params["fromDate"] = start_date
+                    params["toDate"] = end_date
 
                     if verbose:
-                        logger.debug(f"Processed {security.symbol}: {len(records)} records")
+                        logger.debug(f"Fetching historical data for {security.symbol} with params: {params}")
 
-                else:
-                    # Handle empty or error response
+                    # Fetch historical data from API
+                    response = self.api_client.fetch_historical_data(**params)
+
+                    # Check if we have valid data
+                    if response.get("status") == "success" and response.get("data"):
+                        # Store data in the repository
+                        records = response.get("data", [])
+                        result = self.repository.upsert_daily_data(str(security.id), records, source="dhan_historical_api")
+
+                        # Update batch results
+                        batch_results["securities_success"] += 1
+                        batch_results["total_records"] += len(records)
+                        batch_results["security_results"][str(security.id)] = {"symbol": security.symbol, "records": len(records), "inserted": result[0], "updated": result[1]}
+
+                        if verbose:
+                            logger.debug(f"Processed {security.symbol}: {len(records)} records")
+
+                    else:
+                        # Handle empty or error response
+                        batch_results["securities_error"] += 1
+                        batch_results["errors"][str(security.id)] = {"symbol": security.symbol, "error": "No data returned or API error", "response_status": response.get("status")}
+
+                        if verbose:
+                            logger.warning(f"No data returned for {security.symbol}")
+
+                except Exception as e:
+                    # Handle any exceptions during processing
                     batch_results["securities_error"] += 1
-                    batch_results["errors"][str(security.id)] = {"symbol": security.symbol, "error": "No data returned or API error", "response_status": response.get("status")}
+                    batch_results["errors"][str(security.id)] = {"symbol": security.symbol, "error": str(e)}
 
-                    if verbose:
-                        logger.warning(f"No data returned for {security.symbol}")
-
-            except Exception as e:
-                # Handle any exceptions during processing
-                batch_results["securities_error"] += 1
-                batch_results["errors"][str(security.id)] = {"symbol": security.symbol, "error": str(e)}
-
-                logger.error(f"Error processing {security.symbol}: {str(e)}")
+                    logger.error(f"Error processing {security.symbol}: {str(e)}")
 
         if verbose:
             logger.info(f"Completed batch {batch_idx}: {batch_results['securities_success']} success, {batch_results['securities_error']} error")
@@ -391,93 +416,107 @@ class OHLCVFetcher:
         """
         result = {"status": "completed", "securities_with_data": [], "securities_without_data": [], "errors": {}, "total_records_stored": 0}
 
-        # Process each segment
-        for segment, security_ids in securities_by_segment.items():
-            try:
-                # Fetch current data for this segment
-                if verbose:
-                    logger.debug(f"Fetching current data for segment {segment} with {len(security_ids)} securities")
-
-                # Process in batches of 1000 (API limit)
-                batch_size = 1000
-                for i in range(0, len(security_ids), batch_size):
-                    batch = security_ids[i : i + batch_size]
-
-                    # Prepare request
-                    request_data = {segment: batch}
-
-                    # Fetch data from API
-                    response = self.api_client.fetch_current_data(request_data)
-
-                    # Process response
-                    if response:
-                        # Get internal security IDs for external IDs
-                        ext_to_int_map = self._get_security_id_mapping(batch)
-
-                        # Process each security's data
-                        for ext_id, data in response.items():
-                            try:
-                                # Get internal security ID
-                                int_id = ext_to_int_map.get(ext_id)
-
-                                if not int_id:
-                                    logger.warning(f"No internal ID mapping for external ID {ext_id}")
-                                    continue
-
-                                # Create OHLCV record
-                                record = {"time": data.get("timestamp"), "open": data.get("open"), "high": data.get("high"), "low": data.get("low"), "close": data.get("close"), "volume": data.get("volume", 0)}
-
-                                # Validate record
-                                if self._validate_current_data_record(record):
-                                    # Store in repository
-                                    self.repository.upsert_daily_data(int_id, [record], source="dhan_quote_api")
-
-                                    result["securities_with_data"].append(int_id)
-                                    result["total_records_stored"] += 1
-
-                                    if verbose:
-                                        logger.debug(f"Stored current data for security {int_id}")
-                                else:
-                                    result["securities_without_data"].append(int_id)
-
-                                    if verbose:
-                                        logger.debug(f"Invalid or empty data for security {int_id}")
-
-                            except Exception as e:
-                                logger.error(f"Error processing current data for security {ext_id}: {str(e)}")
-                                result["errors"][ext_id] = str(e)
-
-                    # Log batch progress
+        # Create a session for the entire process
+        with get_db() as db:
+            # Process each segment
+            for segment, security_ids in securities_by_segment.items():
+                try:
+                    # Fetch current data for this segment
                     if verbose:
-                        logger.debug(f"Processed batch of {len(batch)} securities for segment {segment}")
+                        logger.debug(f"Fetching current data for segment {segment} with {len(security_ids)} securities")
 
-            except Exception as e:
-                logger.error(f"Error processing segment {segment}: {str(e)}")
-                for id in security_ids:
-                    result["errors"][id] = f"Segment error: {str(e)}"
+                    # Process in batches of 1000 (API limit)
+                    batch_size = 1000
+                    for i in range(0, len(security_ids), batch_size):
+                        batch = security_ids[i : i + batch_size]
+
+                        # Prepare request
+                        request_data = {segment: batch}
+
+                        # Fetch data from API
+                        response = self.api_client.fetch_current_data(request_data)
+
+                        # Process response
+                        if response:
+                            # Get internal security IDs for external IDs
+                            ext_to_int_map = self._get_security_id_mapping(batch, db)
+
+                            # Process each security's data
+                            for ext_id, data in response.items():
+                                try:
+                                    # Get internal security ID
+                                    int_id = ext_to_int_map.get(ext_id)
+
+                                    if not int_id:
+                                        logger.warning(f"No internal ID mapping for external ID {ext_id}")
+                                        continue
+
+                                    # Create OHLCV record
+                                    record = {"time": data.get("timestamp"), "open": data.get("open"), "high": data.get("high"), "low": data.get("low"), "close": data.get("close"), "volume": data.get("volume", 0)}
+
+                                    # Validate record
+                                    if self._validate_current_data_record(record):
+                                        # Store in repository
+                                        self.repository.upsert_daily_data(int_id, [record], source="dhan_quote_api")
+
+                                        result["securities_with_data"].append(int_id)
+                                        result["total_records_stored"] += 1
+
+                                        if verbose:
+                                            logger.debug(f"Stored current data for security {int_id}")
+                                    else:
+                                        result["securities_without_data"].append(int_id)
+
+                                        if verbose:
+                                            logger.debug(f"Invalid or empty data for security {int_id}")
+
+                                except Exception as e:
+                                    logger.error(f"Error processing current data for security {ext_id}: {str(e)}")
+                                    result["errors"][ext_id] = str(e)
+
+                        # Log batch progress
+                        if verbose:
+                            logger.debug(f"Processed batch of {len(batch)} securities for segment {segment}")
+
+                except Exception as e:
+                    logger.error(f"Error processing segment {segment}: {str(e)}")
+                    for id in security_ids:
+                        result["errors"][id] = f"Segment error: {str(e)}"
 
         return result
 
-    def _get_security_id_mapping(self, external_ids: List[str]) -> Dict[str, str]:
+    def _get_security_id_mapping(self, external_ids: List[str], session: Optional[Session] = None) -> Dict[str, str]:
         """Get mapping from external security IDs to internal UUIDs.
 
         Args:
             external_ids: List of external security IDs
+            session: Optional SQLAlchemy session
 
         Returns:
             Dict mapping external IDs to internal UUIDs
         """
         mapping = {}
 
-        with get_db() as db:
+        # Use provided session or create a new one
+        should_close_session = False
+        if session is None:
+            session = SessionLocal()
+            should_close_session = True
+
+        try:
             # Query securities by external IDs
-            securities = db.query(Security).filter(Security.external_id.in_([int(id) for id in external_ids])).all()
+            securities = session.query(Security).filter(Security.external_id.in_([int(id) for id in external_ids])).all()
 
             # Create mapping
             for security in securities:
                 mapping[str(security.external_id)] = str(security.id)
 
-        return mapping
+            return mapping
+
+        finally:
+            # Only close if we created it
+            if should_close_session:
+                session.close()
 
     def _validate_current_data_record(self, record: Dict[str, Any]) -> bool:
         """Validate a current day data record.

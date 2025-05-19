@@ -1,23 +1,30 @@
 # app/services/data_fetchers/exchange_mapper.py
 
-from typing import Dict, Tuple, Any, Optional
+from typing import Dict, Tuple, Any, Optional, List
+from sqlalchemy.orm import Session
+from app.db.session import get_db, SessionLocal
 from app.db.models.security import Security
+from app.db.models.exchange import Exchange
+from app.db.models.derivatives import Future
 from utils.logger import get_logger
 
 logger = get_logger(__name__)
 
 
 class ExchangeMapper:
-    """Maps between internal security representations and Dhan API formats."""
+    """Maps between internal security representations and Dhan API formats with caching."""
 
     def __init__(self):
-        """Initialize mappings between internal and external exchange codes."""
+        """Initialize mappings and caches."""
         # Initialize exchange code mappings
         self.exchange_mapping = self._initialize_exchange_mapping()
         self.segment_mapping = self._initialize_segment_mapping()
         self.instrument_mapping = self._initialize_instrument_mapping()
 
-        logger.info("Initialized exchange and segment mappings")
+        # Cache exchange information
+        self.exchange_info_cache = self._initialize_exchange_info_cache()
+
+        logger.info("Initialized exchange mapper with caches")
 
     def _initialize_exchange_mapping(self) -> Dict[str, str]:
         """Initialize mapping from internal exchange codes to Dhan's format."""
@@ -55,62 +62,29 @@ class ExchangeMapper:
             "DERIVATIVE": "FUTSTK",  # Stock futures - default, will be refined
         }
 
-    def map_exchange_segment(self, security: Security) -> str:
-        """Map internal security to Dhan's exchangeSegment parameter.
+    def _initialize_exchange_info_cache(self) -> Dict[str, Dict[str, Any]]:
+        """Initialize cache of exchange information."""
+        cache = {}
 
-        Args:
-            security: Internal security object
+        with get_db() as db:
+            exchanges = db.query(Exchange).all()
+            for exchange in exchanges:
+                cache[str(exchange.id)] = {"id": str(exchange.id), "code": exchange.code, "name": exchange.name, "country": exchange.country, "timezone": exchange.timezone}
 
-        Returns:
-            Dhan's exchangeSegment value
-        """
-        # Get internal exchange code and security type
-        internal_exchange = security.exchange.code
-        security_type = security.security_type
+        logger.info(f"Cached information for {len(cache)} exchanges")
+        return cache
 
-        # For indices, use the index-specific exchange code
-        if security_type == "INDEX":
-            idx_exchange = f"{internal_exchange}_IDX"
-            return self.exchange_mapping.get(idx_exchange, "NSE_IDX")  # Default to NSE_IDX
-
-        # For derivatives, use F&O segment
-        if security_type in ["DERIVATIVE", "FUTURE", "OPTION"]:
-            deriv_exchange = f"{internal_exchange}_FNO"
-            return self.exchange_mapping.get(deriv_exchange, "NSE_FNO")  # Default to NSE_FNO
-
-        # For regular securities, use the standard mapping
-        return self.exchange_mapping.get(internal_exchange, "NSE_EQ")  # Default to NSE_EQ
-
-    def map_instrument_type(self, security: Security) -> str:
-        """Map internal security to Dhan's instrument parameter.
-
-        Args:
-            security: Internal security object
-
-        Returns:
-            Dhan's instrument value
-        """
-        # Get internal security type
-        security_type = security.security_type
-
-        # Special case for futures - differentiate between index and stock futures
-        if security_type == "FUTURE":
-            # If this is a future with an index as underlying, use FUTIDX
-            if hasattr(security, "futures") and security.futures:
-                underlying = security.futures.underlying
-                if underlying and underlying.security_type == "INDEX":
-                    return "FUTIDX"
-                else:
-                    return "FUTSTK"  # Stock futures
-
-        # Use the standard mapping with default to EQUITY
-        return self.instrument_mapping.get(security_type, "EQUITY")
-
-    def get_dhan_request_params(self, security: Security) -> Dict[str, Any]:
+    def get_dhan_request_params(self, security: Security, session: Optional[Session] = None) -> Dict[str, Any]:
         """Generate Dhan API request parameters for a security.
 
+        This method can work with either:
+        1. A security with loaded relationships
+        2. A security with just IDs and the cache
+        3. A security with a provided session for relationship loading
+
         Args:
             security: Internal security object
+            session: Optional SQLAlchemy session
 
         Returns:
             Dict with parameters for Dhan API request
@@ -118,23 +92,150 @@ class ExchangeMapper:
         # Get external_id for Dhan's securityId
         security_id = str(security.external_id)
 
-        # Map exchange segment and instrument type
-        exchange_segment = self.map_exchange_segment(security)
-        instrument = self.map_instrument_type(security)
+        # Map exchange segment and instrument type - using session or cache as needed
+        exchange_segment = self.map_exchange_segment(security, session)
+        instrument = self.map_instrument_type(security, session)
 
         # Default parameters
         params = {"securityId": security_id, "exchangeSegment": exchange_segment, "instrument": instrument, "expiryCode": 0, "oi": False}  # Default for non-derivatives  # Open interest not needed by default
 
         # Special handling for futures
-        if hasattr(security, "futures") and security.futures:
-            # Set open interest flag for futures
+        has_futures = False
+        expiry_code = 0
+
+        # Check if security has futures relationship
+        if hasattr(security, "futures") and security.futures is not None:
+            has_futures = True
             params["oi"] = True
 
-            # Handle expiry code if available
-            # In a real implementation, this would map to Dhan's expiry code format
-            expiry_date = security.futures.expiration_date
-            if expiry_date:
-                # Simple example - in practice would need proper mapping
-                params["expiryCode"] = 1  # Placeholder
+            # Try to get expiry information if available
+            try:
+                if security.futures.expiration_date:
+                    # This is a simplified conversion
+                    # In a real implementation, would need proper mapping
+                    expiry_code = 1
+            except Exception as e:
+                logger.warning(f"Error accessing futures expiration date: {str(e)}")
+
+        # If we couldn't access futures directly but we have a session
+        if not has_futures and session and hasattr(security, "id"):
+            try:
+                # Try to load futures using session
+                future = session.query(Future).filter(Future.security_id == security.id).first()
+                if future:
+                    has_futures = True
+                    params["oi"] = True
+
+                    if future.expiration_date:
+                        expiry_code = 1  # Simplified conversion
+            except Exception as e:
+                logger.warning(f"Error loading futures with session: {str(e)}")
+
+        # Set expiry code if we found futures
+        if has_futures:
+            params["expiryCode"] = expiry_code
 
         return params
+
+    def map_exchange_segment(self, security: Security, session: Optional[Session] = None) -> str:
+        """Map internal security to Dhan's exchangeSegment parameter.
+
+        Works with multiple approaches to get exchange code.
+
+        Args:
+            security: Internal security object
+            session: Optional SQLAlchemy session
+
+        Returns:
+            Dhan's exchangeSegment value
+        """
+        exchange_code = None
+        security_type = security.security_type
+
+        # Approach 1: Try using the exchange relationship if loaded
+        if hasattr(security, "exchange") and security.exchange is not None:
+            try:
+                exchange_code = security.exchange.code
+            except Exception as e:
+                logger.warning(f"Error accessing exchange.code: {str(e)}")
+
+        # Approach 2: Try using the exchange_id with cache
+        if not exchange_code and hasattr(security, "exchange_id") and security.exchange_id is not None:
+            exchange_id = str(security.exchange_id)
+            exchange_data = self.exchange_info_cache.get(exchange_id)
+            if exchange_data:
+                exchange_code = exchange_data.get("code")
+
+        # Approach 3: Try loading with session if provided
+        if not exchange_code and session and hasattr(security, "exchange_id") and security.exchange_id is not None:
+            try:
+                exchange = session.query(Exchange).filter(Exchange.id == security.exchange_id).first()
+                if exchange:
+                    exchange_code = exchange.code
+            except Exception as e:
+                logger.warning(f"Error loading exchange with session: {str(e)}")
+
+        # Default to NSE if we couldn't determine exchange
+        if not exchange_code:
+            logger.warning(f"Couldn't determine exchange for security {security.symbol}, defaulting to NSE")
+            exchange_code = "NSE"
+
+        # Mapping logic based on security type
+        if security_type == "INDEX":
+            idx_exchange = f"{exchange_code}_IDX"
+            return self.exchange_mapping.get(idx_exchange, "NSE_IDX")
+
+        if security_type in ["DERIVATIVE", "FUTURE", "OPTION"]:
+            deriv_exchange = f"{exchange_code}_FNO"
+            return self.exchange_mapping.get(deriv_exchange, "NSE_FNO")
+
+        return self.exchange_mapping.get(exchange_code, "NSE_EQ")
+
+    def map_instrument_type(self, security: Security, session: Optional[Session] = None) -> str:
+        """Map internal security to Dhan's instrument parameter.
+
+        Works with multiple approaches to get security type info.
+
+        Args:
+            security: Internal security object
+            session: Optional SQLAlchemy session
+
+        Returns:
+            Dhan's instrument value
+        """
+        security_type = security.security_type
+
+        # Special case for futures
+        if security_type == "FUTURE":
+            # Try multiple approaches to determine if it's an index future
+            is_index_future = False
+
+            # Approach 1: Direct relationship navigation
+            if not is_index_future and hasattr(security, "futures") and security.futures is not None:
+                try:
+                    if hasattr(security.futures, "underlying") and security.futures.underlying is not None:
+                        underlying = security.futures.underlying
+                        if underlying.security_type == "INDEX":
+                            is_index_future = True
+                except Exception as e:
+                    logger.warning(f"Error checking futures underlying: {str(e)}")
+
+            # Approach 2: Session-based loading
+            if not is_index_future and session and hasattr(security, "id"):
+                try:
+                    future = session.query(Future).filter(Future.security_id == security.id).first()
+                    if future and future.underlying_id:
+                        underlying = session.query(Security).filter(Security.id == future.underlying_id).first()
+                        if underlying and underlying.security_type == "INDEX":
+                            is_index_future = True
+                except Exception as e:
+                    logger.warning(f"Error determining future type with session: {str(e)}")
+
+            # Return appropriate future type
+            if is_index_future:
+                return "FUTIDX"
+            else:
+                return "FUTSTK"
+
+        # Use standard mapping for other types
+        return self.instrument_mapping.get(security_type, "EQUITY")

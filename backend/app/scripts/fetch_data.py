@@ -22,6 +22,7 @@ def parse_args():
     # Historical data command
     historical_parser = subparsers.add_parser("historical", help="Fetch historical OHLCV data")
     historical_parser.add_argument("--security-ids", help="Comma-separated list of security UUIDs")
+    historical_parser.add_argument("--exchanges", help="Comma-separated list of exchange codes")
     historical_parser.add_argument("--segments", help="Comma-separated list of segment types")
     historical_parser.add_argument("--start-date", help="Start date (YYYY-MM-DD)")
     historical_parser.add_argument("--end-date", help="End date (YYYY-MM-DD)")
@@ -54,29 +55,59 @@ def parse_args():
     update_parser.add_argument("--verbose", action="store_true", help="Enable verbose logging")
     update_parser.add_argument("--output-file", help="Output file for results (JSON)")
 
-    return parser.parse_args()
+    args = parser.parse_args()
+
+    # Ensure a command was specified
+    if not args.command:
+        parser.print_help()
+        sys.exit(1)
+
+    return args
 
 
 def split_comma_separated(value: Optional[str]) -> Optional[List[str]]:
-    """Split comma-separated string into list."""
+    """Split comma-separated string into list.
+
+    Args:
+        value: Comma-separated string
+
+    Returns:
+        List of strings or None if input is None
+    """
     if not value:
         return None
     return [item.strip() for item in value.split(",") if item.strip()]
 
 
 def save_output(result: Dict[str, Any], output_file: Optional[str]) -> None:
-    """Save operation result to output file if specified."""
+    """Save operation result to output file if specified.
+
+    Args:
+        result: Operation result
+        output_file: Output file path
+    """
     if output_file:
         try:
+            # Convert datetime objects to strings for JSON serialization
+            def json_serial(obj):
+                if isinstance(obj, (datetime, date)):
+                    return obj.isoformat()
+                raise TypeError(f"Type {type(obj)} not serializable")
+
             with open(output_file, "w") as f:
-                json.dump(result, f, indent=2, default=str)
+                json.dump(result, f, indent=2, default=json_serial)
             logger.info(f"Results saved to {output_file}")
         except Exception as e:
             logger.error(f"Error saving results to {output_file}: {str(e)}")
 
 
 def print_summary(result: Dict[str, Any], command: str) -> None:
-    """Print operation summary to console."""
+    """Print operation summary to console.
+
+    Args:
+        result: Operation result
+        command: Command name
+    """
     print("\n" + "=" * 80)
     print(f"OHLCV Data Fetcher - {command.upper()} OPERATION SUMMARY")
     print("=" * 80)
@@ -121,28 +152,40 @@ def print_summary(result: Dict[str, Any], command: str) -> None:
 
 
 def execute_historical_command(args):
-    """Execute historical data fetch command."""
+    """Execute historical data fetch command.
+
+    Args:
+        args: Parsed command line arguments
+
+    Returns:
+        Exit code (0 for success, 1 for error)
+    """
     # Create fetcher
     fetcher = create_ohlcv_fetcher()
 
-    # Parse security_ids, exchanges, segments
-    security_ids = split_comma_separated(args.security_ids)
-    exchanges = split_comma_separated(args.exchanges)
-    segments = split_comma_separated(args.segments)
+    # Get arguments with safer access
+    security_ids = split_comma_separated(getattr(args, "security_ids", None))
+    exchanges = split_comma_separated(getattr(args, "exchanges", None))
+    segments = split_comma_separated(getattr(args, "segments", None))
+    workers = getattr(args, "workers", 8)
+    batch_size = getattr(args, "batch_size", 50)
+    verbose = getattr(args, "verbose", False)
+    output_file = getattr(args, "output_file", None)
+    full_history = getattr(args, "full_history", False)
 
     # Handle full-history flag
-    if args.full_history:
+    if full_history:
         start_date = None  # Will use default from settings
         end_date = None  # Will use current date
     else:
-        start_date = args.start_date
-        end_date = args.end_date
+        start_date = getattr(args, "start_date", None)
+        end_date = getattr(args, "end_date", None)
 
     # Execute operation
-    result = fetcher.fetch_historical_data(security_ids=security_ids, exchanges=exchanges, segments=segments, start_date=start_date, end_date=end_date, workers=args.workers, batch_size=args.batch_size, verbose=args.verbose)
+    result = fetcher.fetch_historical_data(security_ids=security_ids, exchanges=exchanges, segments=segments, start_date=start_date, end_date=end_date, workers=workers, batch_size=batch_size, verbose=verbose)
 
     # Save output if requested
-    save_output(result, args.output_file)
+    save_output(result, output_file)
 
     # Print summary
     print_summary(result, "historical")
@@ -152,20 +195,32 @@ def execute_historical_command(args):
 
 
 def execute_today_command(args):
-    """Execute today's data fetch command."""
+    """Execute today's data fetch command.
+
+    Args:
+        args: Parsed command line arguments
+
+    Returns:
+        Exit code (0 for success, 1 for error)
+    """
     # Create fetcher
     fetcher = create_ohlcv_fetcher()
 
-    # Parse security_ids, exchanges, segments
-    security_ids = split_comma_separated(args.security_ids)
-    exchanges = split_comma_separated(args.exchanges)
-    segments = split_comma_separated(args.segments)
+    # Get arguments with safer access
+    security_ids = split_comma_separated(getattr(args, "security_ids", None))
+    exchanges = split_comma_separated(getattr(args, "exchanges", None))
+    segments = split_comma_separated(getattr(args, "segments", None))
+    is_eod = getattr(args, "eod", False)
+    workers = getattr(args, "workers", 4)
+    batch_size = getattr(args, "batch_size", 200)
+    verbose = getattr(args, "verbose", False)
+    output_file = getattr(args, "output_file", None)
 
     # Execute operation
-    result = fetcher.fetch_current_day_data(security_ids=security_ids, exchanges=exchanges, segments=segments, is_eod=args.eod, workers=args.workers, batch_size=args.batch_size, verbose=args.verbose)
+    result = fetcher.fetch_current_day_data(security_ids=security_ids, exchanges=exchanges, segments=segments, is_eod=is_eod, workers=workers, batch_size=batch_size, verbose=verbose)
 
     # Save output if requested
-    save_output(result, args.output_file)
+    save_output(result, output_file)
 
     # Print summary
     print_summary(result, "today")
@@ -175,20 +230,33 @@ def execute_today_command(args):
 
 
 def execute_update_all_command(args):
-    """Execute update all command."""
+    """Execute update all command.
+
+    Args:
+        args: Parsed command line arguments
+
+    Returns:
+        Exit code (0 for success, 1 for error)
+    """
     # Create fetcher
     fetcher = create_ohlcv_fetcher()
 
-    # Parse security_ids, exchanges, segments
-    security_ids = split_comma_separated(args.security_ids)
-    exchanges = split_comma_separated(args.exchanges)
-    segments = split_comma_separated(args.segments)
+    # Get arguments with safer access
+    security_ids = split_comma_separated(getattr(args, "security_ids", None))
+    exchanges = split_comma_separated(getattr(args, "exchanges", None))
+    segments = split_comma_separated(getattr(args, "segments", None))
+    days_back = getattr(args, "days_back", 7)
+    skip_today = getattr(args, "skip_today", False)
+    workers = getattr(args, "workers", 8)
+    batch_size = getattr(args, "batch_size", 50)
+    verbose = getattr(args, "verbose", False)
+    output_file = getattr(args, "output_file", None)
 
     # Execute operation
-    result = fetcher.update_all_data(security_ids=security_ids, exchanges=exchanges, segments=segments, days_back=args.days_back, include_today=not args.skip_today, workers=args.workers, batch_size=args.batch_size, verbose=args.verbose)
+    result = fetcher.update_all_data(security_ids=security_ids, exchanges=exchanges, segments=segments, days_back=days_back, include_today=not skip_today, workers=workers, batch_size=batch_size, verbose=verbose)
 
     # Save output if requested
-    save_output(result, args.output_file)
+    save_output(result, output_file)
 
     # Print summary
     print_summary(result, "update-all")
@@ -198,19 +266,31 @@ def execute_update_all_command(args):
 
 
 def main():
-    """Main entry point for CLI."""
+    """Main entry point for CLI.
+
+    Returns:
+        Exit code (0 for success, non-zero for error)
+    """
     # Parse arguments
     args = parse_args()
 
-    # Execute appropriate command
-    if args.command == "historical":
-        return execute_historical_command(args)
-    elif args.command == "today":
-        return execute_today_command(args)
-    elif args.command == "update-all":
-        return execute_update_all_command(args)
-    else:
-        logger.error("No command specified. Use --help for usage information.")
+    try:
+        # Log startup
+        logger.info(f"Starting OHLCV Data Fetcher - Command: {args.command}")
+
+        # Execute appropriate command
+        if args.command == "historical":
+            return execute_historical_command(args)
+        elif args.command == "today":
+            return execute_today_command(args)
+        elif args.command == "update-all":
+            return execute_update_all_command(args)
+        else:
+            logger.error(f"Unknown command: {args.command}")
+            return 1
+    except Exception as e:
+        logger.error(f"Unhandled exception: {str(e)}", exc_info=True)
+        print(f"\nERROR: {str(e)}")
         return 1
 
 
