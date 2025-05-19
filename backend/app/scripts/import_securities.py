@@ -21,14 +21,12 @@ import uuid
 import argparse
 import concurrent.futures
 import requests
-import logging
 import pandas as pd
-from typing import Dict, List, Tuple, Optional, Set, Any
+from typing import Dict, Tuple, Any
 from datetime import datetime, date
-from sqlalchemy import func, or_, and_, text
+from sqlalchemy import text
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import SQLAlchemyError
-from tqdm import tqdm
 from app.db.session import SessionLocal, get_db
 from app.db.models.security import Security
 from app.db.models.derivatives import Future
@@ -40,7 +38,6 @@ from app.config import settings
 logger = get_logger(__name__)
 
 # Constants
-CSV_URL = "https://images.dhan.co/api-data/api-scrip-master.csv"
 CSV_BACKUP_DIR = os.path.join(settings.CACHE_DIR, "securities_data")
 BATCH_SIZE = 10  # Process in very small batches to avoid SQL limitations
 
@@ -105,7 +102,7 @@ class SecuritiesImporter:
         unique_exchanges = set()
         try:
             # Try to download the CSV to get exchange codes
-            csv_url = "https://images.dhan.co/api-data/api-scrip-master.csv"
+            csv_url = settings.DHAN_SCRIP_MASTER_URL
             response = requests.get(csv_url, timeout=60)
             if response.status_code == 200:
                 csv_content = response.content.decode("utf-8")
@@ -177,23 +174,13 @@ class SecuritiesImporter:
             DataFrame with securities data
         """
         start_time = time.time()
-        logger.info(f"Downloading securities data from {CSV_URL}")
+        logger.info(f"Downloading securities data from {settings.DHAN_SCRIP_MASTER_URL}")
 
         try:
-            # Create a progress bar for the download
-            with tqdm(total=None, unit="B", unit_scale=True, desc="Downloading", disable=not self.show_progress) as t:
-                response = requests.get(CSV_URL, timeout=60, stream=True)
-                response.raise_for_status()
-
-                # Get the content length if available
-                total_size = int(response.headers.get("content-length", 0))
-                t.total = total_size
-
-                # Download with progress tracking
-                content = bytearray()
-                for chunk in response.iter_content(chunk_size=8192):
-                    content.extend(chunk)
-                    t.update(len(chunk))
+            # Download data without progress bar
+            response = requests.get(settings.DHAN_SCRIP_MASTER_URL, timeout=60)
+            response.raise_for_status()
+            content = response.content
 
             # Save backup copy
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -202,16 +189,16 @@ class SecuritiesImporter:
                 f.write(content)
             logger.info(f"Saved backup to {backup_path}")
 
-            # Parse CSV with a progress bar
+            # Parse CSV
             logger.info("Parsing CSV data...")
             if self.show_progress:
-                print("Parsing CSV data...", end="", flush=True)
+                logger.info("Parsing CSV data...")
 
             csv_content = content.decode("utf-8")
-            df = pd.read_csv(io.StringIO(csv_content), low_memory=False)  # Added low_memory=False to avoid dtype warnings
+            df = pd.read_csv(io.StringIO(csv_content), low_memory=False)
 
             if self.show_progress:
-                print(f" Done! ({len(df)} records)")
+                logger.info(f" Done! ({len(df)} records)")
 
             logger.info(f"Downloaded and parsed {len(df)} records in {time.time() - start_time:.2f} seconds")
             return df
@@ -226,7 +213,7 @@ class SecuritiesImporter:
                 logger.info(f"Using latest backup from {latest_backup}")
 
                 if self.show_progress:
-                    print(f"Download failed. Using backup from {latest_backup}")
+                    logger.warning(f"Download failed. Using backup from {latest_backup}")
 
                 return pd.read_csv(latest_backup, low_memory=False)
 
@@ -250,7 +237,7 @@ class SecuritiesImporter:
         logger.info(f"Filtered {len(securities_df)} securities and {len(futures_df)} futures")
 
         if self.show_progress:
-            print(f"Filtered {len(securities_df)} securities and {len(futures_df)} futures")
+            logger.info(f"Filtered {len(securities_df)} securities and {len(futures_df)} futures")
 
         return securities_df, futures_df
 
@@ -435,37 +422,47 @@ class SecuritiesImporter:
         logger.info(f"Processing {len(securities_df)} securities with {self.workers} workers")
 
         # Split data into chunks
-        chunk_size = 100  # Larger chunks for distribution to workers
+        chunk_size = 100
         chunks = [securities_df.iloc[i : i + chunk_size] for i in range(0, len(securities_df), chunk_size)]
         logger.info(f"Split data into {len(chunks)} chunks of {chunk_size} records")
 
         total_stats = {"created": 0, "updated": 0, "skipped": 0, "errors": 0}
 
-        # Process chunks in parallel with progress bar
-        with tqdm(total=len(chunks), desc="Processing securities", unit="chunk", disable=not self.show_progress) as pbar:
-            with concurrent.futures.ThreadPoolExecutor(max_workers=self.workers) as executor:
-                future_to_chunk = {executor.submit(self.process_securities_chunk, chunk): i for i, chunk in enumerate(chunks)}
+        # Log progress periodically instead of using tqdm
+        if self.show_progress:
+            logger.info(f"Processing {len(securities_df)} securities in {len(chunks)} chunks...")
 
-                for future in concurrent.futures.as_completed(future_to_chunk):
-                    chunk_idx = future_to_chunk[future]
-                    try:
-                        stats = future.result()
-                        # Aggregate stats
-                        for key in total_stats:
-                            total_stats[key] += stats[key]
+        # Process chunks in parallel
+        with concurrent.futures.ThreadPoolExecutor(max_workers=self.workers) as executor:
+            future_to_chunk = {executor.submit(self.process_securities_chunk, chunk): i for i, chunk in enumerate(chunks)}
 
-                        # Update progress bar
-                        pbar.update(1)
-                        pbar.set_postfix({"created": total_stats["created"], "updated": total_stats["updated"], "errors": total_stats["errors"]})
+            completed = 0
+            for future in concurrent.futures.as_completed(future_to_chunk):
+                chunk_idx = future_to_chunk[future]
+                completed += 1
 
-                        logger.info(f"Completed chunk {chunk_idx+1}/{len(chunks)}: {stats}")
-                    except Exception as e:
-                        logger.error(f"Error in chunk {chunk_idx}: {e}")
-                        total_stats["errors"] += len(chunks[chunk_idx])
-                        pbar.update(1)
+                # Log progress every 10% or 10 chunks, whichever is more frequent
+                log_interval = max(len(chunks) // 10, 10)
+                if completed % log_interval == 0 or completed == len(chunks):
+                    if self.show_progress:
+                        progress_pct = (completed / len(chunks)) * 100
+                        logger.info(f"Progress: {completed}/{len(chunks)} chunks ({progress_pct:.1f}%)...")
+
+                try:
+                    stats = future.result()
+                    # Aggregate stats
+                    for key in total_stats:
+                        total_stats[key] += stats[key]
+
+                    logger.info(f"Completed chunk {chunk_idx+1}/{len(chunks)}: {stats}")
+                except Exception as e:
+                    logger.error(f"Error in chunk {chunk_idx}: {e}")
+                    total_stats["errors"] += len(chunks[chunk_idx])
 
         duration = time.time() - start_time
         logger.info(f"Finished processing securities in {duration:.2f} seconds: {total_stats}")
+        if self.show_progress:
+            logger.info(f"Securities processing complete: {total_stats['created']} created, {total_stats['updated']} updated, {total_stats['errors']} errors")
 
         # Update metrics
         self.metrics["securities_total"] = len(securities_df)
@@ -659,37 +656,47 @@ class SecuritiesImporter:
         logger.info(f"Processing {len(futures_df)} futures with {self.workers} workers")
 
         # Split data into chunks
-        chunk_size = 100  # Larger chunks for distribution to workers
+        chunk_size = 100
         chunks = [futures_df.iloc[i : i + chunk_size] for i in range(0, len(futures_df), chunk_size)]
         logger.info(f"Split data into {len(chunks)} chunks of {chunk_size} records")
 
         total_stats = {"created": 0, "updated": 0, "skipped": 0, "errors": 0}
 
-        # Process chunks in parallel with progress bar
-        with tqdm(total=len(chunks), desc="Processing futures", unit="chunk", disable=not self.show_progress) as pbar:
-            with concurrent.futures.ThreadPoolExecutor(max_workers=self.workers) as executor:
-                future_to_chunk = {executor.submit(self.process_futures_chunk, chunk): i for i, chunk in enumerate(chunks)}
+        # Log progress periodically instead of using tqdm
+        if self.show_progress:
+            logger.info(f"Processing {len(futures_df)} futures in {len(chunks)} chunks...")
 
-                for future in concurrent.futures.as_completed(future_to_chunk):
-                    chunk_idx = future_to_chunk[future]
-                    try:
-                        stats = future.result()
-                        # Aggregate stats
-                        for key in total_stats:
-                            total_stats[key] += stats[key]
+        # Process chunks in parallel
+        with concurrent.futures.ThreadPoolExecutor(max_workers=self.workers) as executor:
+            future_to_chunk = {executor.submit(self.process_futures_chunk, chunk): i for i, chunk in enumerate(chunks)}
 
-                        # Update progress bar
-                        pbar.update(1)
-                        pbar.set_postfix({"created": total_stats["created"], "updated": total_stats["updated"], "errors": total_stats["errors"]})
+            completed = 0
+            for future in concurrent.futures.as_completed(future_to_chunk):
+                chunk_idx = future_to_chunk[future]
+                completed += 1
 
-                        logger.info(f"Completed futures chunk {chunk_idx+1}/{len(chunks)}: {stats}")
-                    except Exception as e:
-                        logger.error(f"Error in futures chunk {chunk_idx}: {e}")
-                        total_stats["errors"] += len(chunks[chunk_idx])
-                        pbar.update(1)
+                # Log progress every 10% or 5 chunks, whichever is more frequent
+                log_interval = max(len(chunks) // 10, 5)
+                if completed % log_interval == 0 or completed == len(chunks):
+                    if self.show_progress:
+                        progress_pct = (completed / len(chunks)) * 100
+                        logger.info(f"Progress: {completed}/{len(chunks)} chunks ({progress_pct:.1f}%)...")
+
+                try:
+                    stats = future.result()
+                    # Aggregate stats
+                    for key in total_stats:
+                        total_stats[key] += stats[key]
+
+                    logger.info(f"Completed futures chunk {chunk_idx+1}/{len(chunks)}: {stats}")
+                except Exception as e:
+                    logger.error(f"Error in futures chunk {chunk_idx}: {e}")
+                    total_stats["errors"] += len(chunks[chunk_idx])
 
         duration = time.time() - start_time
         logger.info(f"Finished processing futures in {duration:.2f} seconds: {total_stats}")
+        if self.show_progress:
+            logger.info(f"Futures processing complete: {total_stats['created']} created, {total_stats['updated']} updated, {total_stats['errors']} errors")
 
         # Update metrics
         self.metrics["futures_total"] = len(futures_df)
@@ -714,7 +721,7 @@ class SecuritiesImporter:
                 expired_futures = db.query(Future).filter(Future.expiration_date < today, Future.is_active == True).all()
 
                 if self.show_progress and expired_futures:
-                    print(f"Marking {len(expired_futures)} expired futures as inactive...")
+                    logger.info(f"Marking {len(expired_futures)} expired futures as inactive...")
 
                 # Mark them as inactive
                 for future in expired_futures:
@@ -740,10 +747,10 @@ class SecuritiesImporter:
         logger.info(f"Starting securities import (full_refresh={self.full_refresh})")
 
         if self.show_progress:
-            print(f"\n{'='*80}\n QuantPulse Securities Import\n{'='*80}")
-            print(f" Mode: {'Full Refresh' if self.full_refresh else 'Incremental Update'}")
-            print(f" Workers: {self.workers}")
-            print(f" Started at: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
+            logger.info(f"\n{'='*80}\n QuantPulse Securities Import\n{'='*80}")
+            logger.info(f" Mode: {'Full Refresh' if self.full_refresh else 'Incremental Update'}")
+            logger.info(f" Workers: {self.workers}")
+            logger.info(f" Started at: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
 
         try:
             # Fetch and filter data
@@ -765,12 +772,12 @@ class SecuritiesImporter:
             logger.info(f"Import completed in {self.metrics['runtime_seconds']:.2f} seconds")
 
             if self.show_progress:
-                print(f"\n{'='*80}")
-                print(f" Import completed in {self.metrics['runtime_seconds']:.2f} seconds")
-                print(f" Securities: {self.metrics['securities_created']} created, {self.metrics['securities_updated']} updated")
-                print(f" Futures: {self.metrics['futures_created']} created, {self.metrics['futures_updated']} updated")
-                print(f" Errors: {self.metrics['errors']}")
-                print(f"{'='*80}\n")
+                logger.info(f"\n{'='*80}")
+                logger.info(f" Import completed in {self.metrics['runtime_seconds']:.2f} seconds")
+                logger.info(f" Securities: {self.metrics['securities_created']} created, {self.metrics['securities_updated']} updated")
+                logger.info(f" Futures: {self.metrics['futures_created']} created, {self.metrics['futures_updated']} updated")
+                logger.info(f" Errors: {self.metrics['errors']}")
+                logger.info(f"{'='*80}\n")
 
             return self.metrics
 
@@ -780,10 +787,10 @@ class SecuritiesImporter:
             self.metrics["runtime_seconds"] = time.time() - start_time
 
             if self.show_progress:
-                print(f"\n{'='*80}")
-                print(f" Import FAILED after {self.metrics['runtime_seconds']:.2f} seconds")
-                print(f" Error: {str(e)}")
-                print(f"{'='*80}\n")
+                logger.error(f"\n{'='*80}")
+                logger.error(f" Import FAILED after {self.metrics['runtime_seconds']:.2f} seconds")
+                logger.error(f" Error: {str(e)}")
+                logger.error(f"{'='*80}\n")
 
             return self.metrics
 
