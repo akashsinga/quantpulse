@@ -3,7 +3,7 @@
 from fastapi import Depends, HTTPException, status, Request
 from fastapi.security import OAuth2PasswordBearer
 from jose import JWTError, jwt
-from db.session import get_db
+from db.session import get_db_session
 from config import settings
 from db.models.user import User
 from schemas.auth import TokenData
@@ -12,7 +12,7 @@ from utils.logger import get_logger
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl=f"{settings.API_V1_PREFIX}/auth/login")
 
 
-async def get_current_user(token: str = Depends(oauth2_scheme), db=Depends(get_db)) -> User:
+async def get_current_user(token: str = Depends(oauth2_scheme), db=Depends(get_db_session)) -> User:
     """Get the current user from the token"""
     credentials_exception = HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Could not validate credentials", headers={"WWW-Authenticate": "Bearer"})
 

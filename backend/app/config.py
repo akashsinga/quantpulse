@@ -14,7 +14,7 @@ class Settings(BaseSettings):
     # General Settings
     APP_NAME: str = "QuantPulse API"
     DEBUG: bool = os.getenv("DEBUG", "False").lower() == "true"
-    API_V1_PREFIX: str = "api/v1"
+    API_V1_PREFIX: str = "/api/v1"
 
     # CORS Settings
     CORS_ORIGINS: List[str] = ["http://localhost:3000", "http://localhost:8000", "https://quantpulse.app"]

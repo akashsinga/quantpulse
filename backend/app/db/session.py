@@ -36,6 +36,13 @@ def get_db():
     finally:
         db.close()
 
+def get_db_session():
+    """Get a DB session for FastAPI dependency injection"""
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
 
 # Async dependency for FastAPI endpoints
 async def get_async_db():
