@@ -29,7 +29,7 @@ from sqlalchemy import func, or_, and_, text
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import SQLAlchemyError
 from tqdm import tqdm
-from app.db.session import get_db
+from app.db.session import SessionLocal, get_db
 from app.db.models.security import Security
 from app.db.models.derivatives import Future
 from app.db.models.exchange import Exchange
@@ -48,56 +48,99 @@ BATCH_SIZE = 10  # Process in very small batches to avoid SQL limitations
 class SecuritiesImporter:
     """Handles importing securities from Dhan API into QuantPulse database."""
 
-    def __init__(self, db: Session, workers: int = 8, full_refresh: bool = False, show_progress: bool = True):
+    def __init__(self, workers: int = 8, full_refresh: bool = False, show_progress: bool = True):
         """Initialize the importer.
 
         Args:
-            db: Database session
             workers: Number of worker threads for parallel processing
             full_refresh: Whether to perform a full refresh (vs incremental)
             show_progress: Whether to show progress bars (CLI mode)
         """
-        self.db = db
         self.workers = workers
         self.full_refresh = full_refresh
         self.show_progress = show_progress
         self.exchanges_map = {}
         self.metrics = {"securities_total": 0, "securities_created": 0, "securities_updated": 0, "securities_skipped": 0, "futures_total": 0, "futures_created": 0, "futures_updated": 0, "futures_skipped": 0, "errors": 0, "runtime_seconds": 0}
 
-        # Load exchange mapping
-        self._load_exchanges()
+        # Load exchange mapping - using a separate session that will be closed after initialization
+        with get_db() as db:
+            self._load_exchanges(db)
 
         # Ensure backup directory exists
         os.makedirs(CSV_BACKUP_DIR, exist_ok=True)
 
         # Check and increase symbol column length if needed
-        self._ensure_symbol_column_length()
+        with get_db() as db:
+            self._ensure_symbol_column_length(db)
 
-    def _load_exchanges(self) -> None:
-        """Load exchanges from database and create a lookup map."""
-        exchanges = self.db.query(Exchange).all()
+    def _load_exchanges(self, db: Session) -> None:
+        """Load exchanges from database and create a lookup map.
+
+        Args:
+            db: Database session
+        """
+        exchanges = db.query(Exchange).all()
         for exchange in exchanges:
             self.exchanges_map[exchange.code] = exchange.id
 
-        # If exchanges don't exist yet, create them
+        # Create exchanges with fixed IDs for consistency if they don't exist
+        exchanges_to_create = []
+
         if "NSE" not in self.exchanges_map:
-            nse = Exchange(id=uuid.uuid4(), name="National Stock Exchange of India", code="NSE", country="India", timezone="Asia/Kolkata", is_active=True)
-            self.db.add(nse)
-            self.exchanges_map["NSE"] = nse.id
+            # Use a fixed UUID for NSE
+            nse_id = uuid.UUID("984ffe13-dcfb-4362-8291-5f2bee2645ef")
+            nse = Exchange(id=nse_id, name="National Stock Exchange of India", code="NSE", country="India", timezone="Asia/Kolkata", is_active=True)
+            exchanges_to_create.append(nse)
+            self.exchanges_map["NSE"] = nse_id
 
         if "BSE" not in self.exchanges_map:
-            bse = Exchange(id=uuid.uuid4(), name="Bombay Stock Exchange", code="BSE", country="India", timezone="Asia/Kolkata", is_active=True)
-            self.db.add(bse)
-            self.exchanges_map["BSE"] = bse.id
+            # Use a different fixed UUID for BSE
+            bse_id = uuid.UUID("56d68a9b-c756-4baa-9786-3d1a7b2cfb2c")
+            bse = Exchange(id=bse_id, name="Bombay Stock Exchange", code="BSE", country="India", timezone="Asia/Kolkata", is_active=True)
+            exchanges_to_create.append(bse)
+            self.exchanges_map["BSE"] = bse_id
 
-        if "NSE" not in self.exchanges_map or "BSE" not in self.exchanges_map:
-            self.db.commit()
+        # Check if we need to add more exchanges from the Dhan data
+        # This handles cases where securities reference exchanges other than NSE and BSE
+        unique_exchanges = set()
+        try:
+            # Try to download the CSV to get exchange codes
+            csv_url = "https://images.dhan.co/api-data/api-scrip-master.csv"
+            response = requests.get(csv_url, timeout=60)
+            if response.status_code == 200:
+                csv_content = response.content.decode("utf-8")
+                df = pd.read_csv(io.StringIO(csv_content), low_memory=False)
+                # Extract unique exchange codes
+                if "SEM_EXM_EXCH_ID" in df.columns:
+                    unique_exchanges = set(df["SEM_EXM_EXCH_ID"].dropna().unique())
+        except Exception as e:
+            logger.error(f"Error fetching exchange data: {e}")
 
-    def _ensure_symbol_column_length(self) -> None:
-        """Check and increase symbol column length if needed."""
+        # Create any missing exchanges from the CSV
+        for exchange_code in unique_exchanges:
+            if exchange_code and exchange_code not in self.exchanges_map:
+                # Generate a deterministic UUID from the exchange code
+                exchange_id = uuid.uuid5(uuid.NAMESPACE_DNS, f"exchange.{exchange_code}.quantpulse.app")
+                new_exchange = Exchange(id=exchange_id, name=f"{exchange_code} Exchange", code=exchange_code, country="India", timezone="Asia/Kolkata", is_active=True)  # Default name  # Default  # Default
+                exchanges_to_create.append(new_exchange)
+                self.exchanges_map[exchange_code] = exchange_id
+                logger.info(f"Adding exchange: {exchange_code} with ID: {exchange_id}")
+
+        # Add all exchanges in one batch if needed
+        if exchanges_to_create:
+            db.add_all(exchanges_to_create)
+            db.commit()
+            logger.info(f"Created {len(exchanges_to_create)} missing exchanges")
+
+    def _ensure_symbol_column_length(self, db: Session) -> None:
+        """Check and increase symbol column length if needed.
+
+        Args:
+            db: Database session
+        """
         try:
             # Check current column length
-            result = self.db.execute(
+            result = db.execute(
                 text(
                     """
                 SELECT character_maximum_length 
@@ -107,18 +150,18 @@ class SecuritiesImporter:
                 )
             ).scalar()
 
-            if result and int(result) < 50:
+            if result and int(result) < 100:
                 # Column is too short, increase it
-                logger.info("Increasing securities.symbol column length to 50 characters")
-                self.db.execute(
+                logger.info("Increasing securities.symbol column length to 100 characters")
+                db.execute(
                     text(
                         """
                     ALTER TABLE securities 
-                    ALTER COLUMN symbol TYPE varchar(50)
+                    ALTER COLUMN symbol TYPE varchar(100)
                 """
                     )
                 )
-                self.db.commit()
+                db.commit()
                 logger.info("Column length increased successfully")
             else:
                 logger.info("Securities.symbol column length is already sufficient")
@@ -165,7 +208,7 @@ class SecuritiesImporter:
                 print("Parsing CSV data...", end="", flush=True)
 
             csv_content = content.decode("utf-8")
-            df = pd.read_csv(io.StringIO(csv_content))
+            df = pd.read_csv(io.StringIO(csv_content), low_memory=False)  # Added low_memory=False to avoid dtype warnings
 
             if self.show_progress:
                 print(f" Done! ({len(df)} records)")
@@ -185,7 +228,7 @@ class SecuritiesImporter:
                 if self.show_progress:
                     print(f"Download failed. Using backup from {latest_backup}")
 
-                return pd.read_csv(latest_backup)
+                return pd.read_csv(latest_backup, low_memory=False)
 
             raise RuntimeError("Failed to download securities data and no backup available")
 
@@ -242,6 +285,8 @@ class SecuritiesImporter:
         """
         result = {"status": "unknown", "error": None, "security": None}
 
+        # Create a new session for this operation
+        db = SessionLocal()
         try:
             # Get exchange ID
             exchange_id = self.exchanges_map.get(row["SEM_EXM_EXCH_ID"])
@@ -250,41 +295,104 @@ class SecuritiesImporter:
                 result["error"] = f"Exchange not found: {row['SEM_EXM_EXCH_ID']}"
                 return result
 
-            # Check if security already exists
+            # Check if security already exists - check both by external_id and by symbol+exchange
             external_id = int(row["SEM_SMST_SECURITY_ID"])
-            existing = self.db.query(Security).filter(Security.external_id == external_id).first()
+            symbol = row["SEM_TRADING_SYMBOL"]
+
+            # First check by external_id (preferred)
+            existing = db.query(Security).filter(Security.external_id == external_id).first()
+
+            # If not found by external_id, check by symbol and exchange
+            if not existing:
+                existing = db.query(Security).filter(Security.symbol == symbol, Security.exchange_id == exchange_id).first()
+
+                # If found by symbol+exchange but has different external_id, this is unusual
+                # but we'll update it to match the current row
+                if existing and existing.external_id != external_id:
+                    logger.warning(f"Security found with same symbol+exchange but different external_id: {symbol} (DB: {existing.external_id}, CSV: {external_id})")
 
             security_type = self.map_to_security_type(row)
 
-            # Get name (handle NaN values)
-            name = row["SM_SYMBOL_NAME"] if pd.notna(row["SM_SYMBOL_NAME"]) else row["SEM_TRADING_SYMBOL"]
+            # Get name with priority order: SEM_CUSTOM_SYMBOL (for futures), SM_SYMBOL_NAME, SEM_TRADING_SYMBOL
+            if security_type == "DERIVATIVE" and pd.notna(row.get("SEM_CUSTOM_SYMBOL")):
+                name = row["SEM_CUSTOM_SYMBOL"]  # Use the custom symbol which should have proper naming
+            elif pd.notna(row.get("SM_SYMBOL_NAME")):
+                name = row["SM_SYMBOL_NAME"]
+            else:
+                name = symbol
 
             if existing:
                 # Update existing security
-                existing.symbol = row["SEM_TRADING_SYMBOL"]
+                existing.symbol = symbol
                 existing.name = name
                 existing.security_type = security_type
                 existing.segment = "EQUITY"  # All are EQUITY for now
                 existing.is_active = True
                 existing.updated_at = datetime.now()
-                self.db.commit()
+                db.commit()
 
                 result["status"] = "updated"
                 result["security"] = existing
             else:
-                # Create new security
-                new_security = Security(id=uuid.uuid4(), symbol=row["SEM_TRADING_SYMBOL"], name=name, exchange_id=exchange_id, security_type=security_type, segment="EQUITY", external_id=external_id, is_active=True)  # All are EQUITY for now
-                self.db.add(new_security)
-                self.db.commit()
+                # Double-check again to avoid race conditions with other threads
+                # This helps prevent unique constraint violations
+                check_again = db.query(Security).filter(Security.symbol == symbol, Security.exchange_id == exchange_id).first()
 
-                result["status"] = "created"
-                result["security"] = new_security
+                if check_again:
+                    # Another thread created this security between our first check and now
+                    # Just update it and return
+                    check_again.name = name
+                    check_again.security_type = security_type
+                    check_again.segment = "EQUITY"
+                    check_again.is_active = True
+                    check_again.external_id = external_id  # Make sure external_id matches
+                    check_again.updated_at = datetime.now()
+                    db.commit()
+
+                    result["status"] = "updated"
+                    result["security"] = check_again
+                else:
+                    # Create new security
+                    new_security = Security(id=uuid.uuid4(), symbol=symbol, name=name, exchange_id=exchange_id, security_type=security_type, segment="EQUITY", external_id=external_id, is_active=True)  # All are EQUITY for now
+                    db.add(new_security)
+
+                    try:
+                        db.commit()
+                        result["status"] = "created"
+                        result["security"] = new_security
+                    except SQLAlchemyError as e:
+                        # If we hit a unique constraint error, try to find the existing record
+                        db.rollback()
+                        logger.warning(f"Conflict while creating security {symbol}: {e}")
+
+                        # Look up the record again
+                        final_check = db.query(Security).filter(Security.symbol == symbol, Security.exchange_id == exchange_id).first()
+
+                        if final_check:
+                            # Update and return the existing record
+                            final_check.name = name
+                            final_check.security_type = security_type
+                            final_check.segment = "EQUITY"
+                            final_check.is_active = True
+                            final_check.external_id = external_id
+                            final_check.updated_at = datetime.now()
+                            db.commit()
+
+                            result["status"] = "updated"
+                            result["security"] = final_check
+                        else:
+                            # Something else went wrong
+                            result["status"] = "error"
+                            result["error"] = str(e)
+                            logger.error(f"Failed to create or find security {symbol}: {e}")
 
         except Exception as e:
-            self.db.rollback()
+            db.rollback()
             result["status"] = "error"
             result["error"] = str(e)
             logger.error(f"Error processing security {row.get('SEM_TRADING_SYMBOL', 'unknown')}: {e}")
+        finally:
+            db.close()  # Always close the session
 
         return result
 
@@ -379,43 +487,57 @@ class SecuritiesImporter:
         parts = row["SEM_TRADING_SYMBOL"].split("-")
         return parts[0]
 
-    def process_future(self, row: Dict, securities_cache: Dict = None) -> Dict:
+    def process_future(self, row: Dict) -> Dict:
         """Process a single future record with proper error handling.
+
+        This method doesn't take a securities_cache to avoid session binding issues.
 
         Args:
             row: Future data row
-            securities_cache: Optional cache of previously processed securities
 
         Returns:
             Result dictionary
         """
         result = {"status": "unknown", "error": None, "future": None}
 
+        # Create a new session for this operation
+        db = SessionLocal()
         try:
             # First ensure the security record exists
             external_id = int(row["SEM_SMST_SECURITY_ID"])
+            symbol = row["SEM_TRADING_SYMBOL"]
 
-            # Check cache first if provided
-            security = None
-            if securities_cache and external_id in securities_cache:
-                security = securities_cache[external_id]
-            else:
-                # Check database
-                security = self.db.query(Security).filter(Security.external_id == external_id).first()
+            # Check if the security exists by external_id
+            security = db.query(Security).filter(Security.external_id == external_id).first()
 
-            # If security doesn't exist, create it
+            # If security doesn't exist, create it (with a new session inside process_security)
             if not security:
+                # Close current session
+                db.close()
+                # process_security creates its own session
                 security_result = self.process_security(row)
+
+                # Re-open a new session
+                db = SessionLocal()
+
                 if security_result["status"] in ["created", "updated"]:
-                    security = security_result["security"]
+                    # Look up the security using the external_id
+                    security = db.query(Security).filter(Security.external_id == external_id).first()
+
+                    if not security:
+                        result["status"] = "error"
+                        result["error"] = f"Security was created but cannot be found: {external_id}"
+                        return result
                 else:
                     result["status"] = "skipped"
                     result["error"] = f"Failed to create security: {security_result['error']}"
                     return result
 
-            # Find underlying security
+            # Extract the underlying symbol
             underlying_symbol = self.extract_underlying_symbol(row)
-            underlying = self.db.query(Security).filter(Security.symbol == underlying_symbol, Security.security_type.in_(["STOCK", "INDEX"])).first()
+
+            # Find underlying security
+            underlying = db.query(Security).filter(Security.symbol == underlying_symbol, Security.security_type.in_(["STOCK", "INDEX"])).first()
 
             if not underlying:
                 result["status"] = "skipped"
@@ -444,7 +566,7 @@ class SecuritiesImporter:
                 lot_size = 1  # Default
 
             # Check if future already exists
-            existing = self.db.query(Future).filter(Future.security_id == security.id).first()
+            existing = db.query(Future).filter(Future.security_id == security.id).first()
 
             if existing:
                 # Update existing future
@@ -453,24 +575,47 @@ class SecuritiesImporter:
                 existing.lot_size = lot_size
                 existing.contract_month = contract_month
                 existing.is_active = True
-                self.db.commit()
+                db.commit()
 
                 result["status"] = "updated"
                 result["future"] = existing
             else:
                 # Create new future
-                new_future = Future(security_id=security.id, underlying_id=underlying.id, expiration_date=expiry_date, contract_size=1.0, lot_size=lot_size, settlement_type="CASH" if is_index else "PHYSICAL", contract_month=contract_month, is_active=True)  # Standard for Indian markets
-                self.db.add(new_future)
-                self.db.commit()
+                new_future = Future(security_id=security.id, underlying_id=underlying.id, expiration_date=expiry_date, contract_size=1.0, lot_size=lot_size, settlement_type="CASH" if is_index else "PHYSICAL", contract_month=contract_month, is_active=True)
 
-                result["status"] = "created"
-                result["future"] = new_future
+                db.add(new_future)
+
+                try:
+                    db.commit()
+                    result["status"] = "created"
+                    result["future"] = new_future
+                except SQLAlchemyError as e:
+                    db.rollback()
+                    # Check if the future now exists (created by another thread)
+                    check_existing = db.query(Future).filter(Future.security_id == security.id).first()
+                    if check_existing:
+                        # Update it
+                        check_existing.underlying_id = underlying.id
+                        check_existing.expiration_date = expiry_date
+                        check_existing.lot_size = lot_size
+                        check_existing.contract_month = contract_month
+                        check_existing.is_active = True
+                        db.commit()
+
+                        result["status"] = "updated"
+                        result["future"] = check_existing
+                    else:
+                        result["status"] = "error"
+                        result["error"] = str(e)
+                        logger.error(f"Failed to create future for {symbol}: {e}")
 
         except Exception as e:
-            self.db.rollback()
+            db.rollback()
             result["status"] = "error"
             result["error"] = str(e)
             logger.error(f"Error processing future {row.get('SEM_TRADING_SYMBOL', 'unknown')}: {e}")
+        finally:
+            db.close()  # Always close the session
 
         return result
 
@@ -485,15 +630,13 @@ class SecuritiesImporter:
         """
         stats = {"created": 0, "updated": 0, "skipped": 0, "errors": 0}
 
-        # Create a securities cache for this chunk
-        securities_cache = {}
-
         # Break into smaller batches for processing
         for i in range(0, len(chunk), BATCH_SIZE):
             batch = chunk.iloc[i : i + BATCH_SIZE]
 
             for _, row in batch.iterrows():
-                result = self.process_future(row, securities_cache)
+                # Process each future without using a cache
+                result = self.process_future(row)
 
                 if result["status"] == "created":
                     stats["created"] += 1
@@ -503,11 +646,6 @@ class SecuritiesImporter:
                     stats["skipped"] += 1
                 else:
                     stats["errors"] += 1
-
-                # Update cache if future was created/updated and has a security
-                if result["status"] in ["created", "updated"] and result["future"]:
-                    external_id = int(row["SEM_SMST_SECURITY_ID"])
-                    securities_cache[external_id] = result["future"].security
 
         return stats
 
@@ -567,26 +705,30 @@ class SecuritiesImporter:
             Number of futures marked as inactive
         """
         today = date.today()
+        marked_count = 0
 
-        try:
-            # Get futures that have expired but are still marked active
-            expired_futures = self.db.query(Future).filter(Future.expiration_date < today, Future.is_active == True).all()
+        # Using a dedicated session for this operation
+        with get_db() as db:
+            try:
+                # Get futures that have expired but are still marked active
+                expired_futures = db.query(Future).filter(Future.expiration_date < today, Future.is_active == True).all()
 
-            if self.show_progress and expired_futures:
-                print(f"Marking {len(expired_futures)} expired futures as inactive...")
+                if self.show_progress and expired_futures:
+                    print(f"Marking {len(expired_futures)} expired futures as inactive...")
 
-            # Mark them as inactive
-            for future in expired_futures:
-                future.is_active = False
+                # Mark them as inactive
+                for future in expired_futures:
+                    future.is_active = False
+                    marked_count += 1
 
-            self.db.commit()
-            logger.info(f"Marked {len(expired_futures)} expired futures as inactive")
-            return len(expired_futures)
+                db.commit()
+                logger.info(f"Marked {marked_count} expired futures as inactive")
 
-        except SQLAlchemyError as e:
-            self.db.rollback()
-            logger.error(f"Error marking expired futures: {e}")
-            return 0
+            except SQLAlchemyError as e:
+                db.rollback()
+                logger.error(f"Error marking expired futures: {e}")
+
+        return marked_count
 
     def run(self) -> Dict[str, Any]:
         """Run the full import process.
@@ -655,9 +797,9 @@ def main():
     parser.add_argument("--no-progress", action="store_true", help="Hide progress bars")
     args = parser.parse_args()
 
-    with get_db() as db:
-        importer = SecuritiesImporter(db, workers=args.workers, full_refresh=args.full, show_progress=not args.no_progress)
-        metrics = importer.run()
+    # Don't pass a db session to the importer - it will create its own sessions
+    importer = SecuritiesImporter(workers=args.workers, full_refresh=args.full, show_progress=not args.no_progress)
+    metrics = importer.run()
 
     # Return 1 if there were errors
     return 0 if metrics["errors"] == 0 else 1
@@ -677,9 +819,9 @@ def import_securities_api(background_tasks=None, workers=8, full_refresh=False):
     """
 
     def _run_import():
-        with get_db() as db:
-            importer = SecuritiesImporter(db, workers=workers, full_refresh=full_refresh, show_progress=False)  # No progress bars in API mode
-            return importer.run()
+        # Create importer without passing a db session
+        importer = SecuritiesImporter(workers=workers, full_refresh=full_refresh, show_progress=False)  # No progress bars in API mode
+        return importer.run()
 
     # If background_tasks is provided, run in background
     if background_tasks:
