@@ -6,7 +6,22 @@ from functools import lru_cache
 from datetime import timezone, timedelta
 
 import os
+from pathlib import Path
+from dotenv import load_dotenv, find_dotenv
 
+# Find the .env file - first look for it explicitly, then try autodetection
+env_path = Path(__file__).resolve().parent.parent / ".env"
+if env_path.exists():
+    print(f"Loading environment from: {env_path}")
+    load_dotenv(env_path)
+else:
+    # Fall back to auto-detecting .env file
+    dotenv_path = find_dotenv()
+    if dotenv_path:
+        print(f"Loading environment from (auto-detected): {dotenv_path}")
+        load_dotenv(dotenv_path)
+    else:
+        print("WARNING: No .env file found!")
 
 class Settings(BaseSettings):
     """Application settings with environment variable loading"""

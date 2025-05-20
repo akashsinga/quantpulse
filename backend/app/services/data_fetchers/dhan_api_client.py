@@ -6,6 +6,7 @@ import logging
 from datetime import datetime, date, timedelta
 from typing import Dict, List, Optional, Union, Any
 import requests
+import os
 from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
 
 from app.config import settings
@@ -19,12 +20,16 @@ class DhanAPIClient:
 
     def __init__(self):
         """Initialize the Dhan API client with proper configuration."""
-        # Parse headers from settings
-        try:
-            self.headers = json.loads(settings.DHAN_API_HEADERS)
-        except Exception as e:
-            logger.error(f"Error parsing API headers from settings: {str(e)}")
-            self.headers = {"Content-Type": "application/json", "Authorization": "Bearer YOUR_TOKEN"}  # Default placeholder
+
+        api_key = os.getenv("API_KEY")
+        client_id = os.getenv("CLIENT_ID")
+
+        # Construct headers directly instead of parsing from settings
+        self.headers = {"Content-Type": "application/json", "access-token": api_key, "client-id": client_id}
+
+        # Log warning if credentials are missing
+        if not api_key or not client_id:
+            logger.warning("API credentials incomplete! API_KEY or CLIENT_ID environment variable is missing.")
 
         # API endpoints
         self.historical_url = settings.DHAN_CHARTS_HISTORICAL_URL
@@ -55,16 +60,7 @@ class DhanAPIClient:
 
     @retry(retry=retry_if_exception_type((requests.exceptions.RequestException, json.JSONDecodeError)), stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1.0, exp_base=2.0), reraise=True)  # Using hardcoded value instead of settings to avoid issues  # Using hardcoded values instead of settings
     def _make_api_request(self, url: str, data: Dict[str, Any], method: str = "POST") -> Dict[str, Any]:
-        """Make an API request with retry logic and rate limiting.
-
-        Args:
-            url: API endpoint URL
-            data: Request data
-            method: HTTP method (POST or GET)
-
-        Returns:
-            API response as dict
-        """
+        """Make an API request with retry logic and rate limiting."""
         self._respect_rate_limit()
 
         logger.debug(f"Making {method} request to {url}")
@@ -75,14 +71,19 @@ class DhanAPIClient:
             else:
                 response = requests.get(url, params=data, headers=self.headers, timeout=30)
 
+            # Log detailed error information before raising an exception
+            if response.status_code >= 400:
+                logger.error(f"API request error: Status code {response.status_code}")
+                logger.error(f"Request data: {data}")
+                logger.error(f"Response content: {response.text[:500]}")  # Log first 500 chars
+
             response.raise_for_status()
             return response.json()
 
         except requests.exceptions.RequestException as e:
             logger.error(f"API request failed: {str(e)}")
-            raise
-        except json.JSONDecodeError as e:
-            logger.error(f"Failed to parse API response: {str(e)}")
+            if hasattr(e, "response") and e.response:
+                logger.error(f"Response content: {e.response.text[:500]}")
             raise
 
     def fetch_historical_data(self, securityId: str, exchangeSegment: str, instrument: str, expiryCode: int = 0, fromDate: Optional[str] = None, toDate: Optional[str] = None, oi: bool = False) -> Dict[str, Any]:
@@ -104,7 +105,9 @@ class DhanAPIClient:
         fromDate = fromDate or settings.FROM_DATE
         toDate = toDate or (settings.TO_DATE or datetime.now().strftime("%Y-%m-%d"))
 
-        request_data = {"securityId": securityId, "exchangeSegment": exchangeSegment, "instrument": instrument, "expiryCode": expiryCode, "fromDate": fromDate, "toDate": toDate, "oi": oi}
+        request_data = {"securityId": str(securityId), "exchangeSegment": exchangeSegment, "instrument": instrument, "expiryCode": expiryCode, "fromDate": fromDate, "toDate": toDate, "oi": oi}
+
+        logger.debug(request_data)
 
         logger.info(f"Fetching historical data for {securityId} from {fromDate} to {toDate}")
 

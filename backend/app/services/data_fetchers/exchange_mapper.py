@@ -103,19 +103,24 @@ class ExchangeMapper:
         has_futures = False
         expiry_code = 0
 
-        # Check if security has futures relationship
-        if hasattr(security, "futures") and security.futures is not None:
-            has_futures = True
-            params["oi"] = True
+        # Check if futures relationship is already loaded without triggering lazy loading
+        if hasattr(security, "_sa_instance_state"):
+            from sqlalchemy import inspect
 
-            # Try to get expiry information if available
-            try:
-                if security.futures.expiration_date:
-                    # This is a simplified conversion
-                    # In a real implementation, would need proper mapping
-                    expiry_code = 1
-            except Exception as e:
-                logger.warning(f"Error accessing futures expiration date: {str(e)}")
+            insp = inspect(security)
+            if insp.attrs.futures.loaded_value is not None:
+                futures = security.futures
+                if futures is not None:
+                    has_futures = True
+                    params["oi"] = True
+                    # Try to get expiry information if available
+                    try:
+                        if futures.expiration_date:
+                            # This is a simplified conversion
+                            # In a real implementation, would need proper mapping
+                            expiry_code = 1
+                    except Exception as e:
+                        logger.warning(f"Error accessing futures expiration date: {str(e)}")
 
         # If we couldn't access futures directly but we have a session
         if not has_futures and session and hasattr(security, "id"):
@@ -152,12 +157,16 @@ class ExchangeMapper:
         exchange_code = None
         security_type = security.security_type
 
-        # Approach 1: Try using the exchange relationship if loaded
-        if hasattr(security, "exchange") and security.exchange is not None:
-            try:
-                exchange_code = security.exchange.code
-            except Exception as e:
-                logger.warning(f"Error accessing exchange.code: {str(e)}")
+        # Approach 1: Check if exchange relationship is already loaded without triggering lazy loading
+        if hasattr(security, "_sa_instance_state"):
+            from sqlalchemy import inspect
+
+            insp = inspect(security)
+            if insp.attrs.exchange.loaded_value is not None:
+                try:
+                    exchange_code = security.exchange.code
+                except Exception as e:
+                    logger.warning(f"Error accessing exchange.code: {str(e)}")
 
         # Approach 2: Try using the exchange_id with cache
         if not exchange_code and hasattr(security, "exchange_id") and security.exchange_id is not None:
@@ -210,15 +219,20 @@ class ExchangeMapper:
             # Try multiple approaches to determine if it's an index future
             is_index_future = False
 
-            # Approach 1: Direct relationship navigation
-            if not is_index_future and hasattr(security, "futures") and security.futures is not None:
-                try:
-                    if hasattr(security.futures, "underlying") and security.futures.underlying is not None:
-                        underlying = security.futures.underlying
-                        if underlying.security_type == "INDEX":
-                            is_index_future = True
-                except Exception as e:
-                    logger.warning(f"Error checking futures underlying: {str(e)}")
+            # Approach 1: Check if futures relationship is already loaded without triggering lazy loading
+            if hasattr(security, "_sa_instance_state"):
+                from sqlalchemy import inspect
+
+                insp = inspect(security)
+                if insp.attrs.futures.loaded_value is not None:
+                    try:
+                        futures = security.futures
+                        if futures is not None and hasattr(futures, "underlying") and futures.underlying is not None:
+                            underlying = futures.underlying
+                            if underlying.security_type == "INDEX":
+                                is_index_future = True
+                    except Exception as e:
+                        logger.warning(f"Error checking futures underlying: {str(e)}")
 
             # Approach 2: Session-based loading
             if not is_index_future and session and hasattr(security, "id"):

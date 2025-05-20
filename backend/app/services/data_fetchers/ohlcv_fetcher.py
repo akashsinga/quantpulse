@@ -201,54 +201,38 @@ class OHLCVFetcher:
         return operation_result
 
     def _select_securities(self, security_ids: Optional[List[str]] = None, exchanges: Optional[List[str]] = None, segments: Optional[List[str]] = None) -> List[Security]:
-        """Select securities based on provided criteria with eager loading.
-
-        If no criteria are provided, select all active securities.
-
-        Args:
-            security_ids: Optional list of security UUIDs
-            exchanges: Optional list of exchange codes
-            segments: Optional list of segment types
-
-        Returns:
-            List of Security objects
-        """
+        """Select securities based on provided criteria with eager loading."""
         logger.info("Selecting securities for processing")
 
         with get_db() as db:
-            # Use joinedload to eagerly load the exchange relationship
-            query = db.query(Security).options(joinedload(Security.exchange)).filter(Security.is_active == True)
+            # Use joinedload to eagerly load both exchange and futures relationships
+            query = db.query(Security).options(joinedload(Security.exchange), joinedload(Security.futures)).filter(Security.is_active == True)  # Add this line to eager load futures
 
-            # Apply security_ids filter if provided
+            # Apply filters...
             if security_ids:
                 query = query.filter(Security.id.in_(security_ids))
 
-            # Apply exchanges filter if provided
             if exchanges:
                 query = query.join(Security.exchange).filter(Exchange.code.in_([code.upper() for code in exchanges]))
 
-            # Apply segments filter if provided
             if segments:
                 query = query.filter(Security.segment.in_(segments))
 
-            # Order by priority (in a real impl, would use trading volume or importance)
             query = query.order_by(Security.symbol)
-
-            # Execute query
             securities = query.all()
 
-            # Create a copy of all relevant attributes to detach from session
+            # Create copies with relevant attributes to detach from session
             detached_securities = []
             for security in securities:
-                # Ensure exchange is accessed to load the relationship
+                # Access relationships to ensure they're loaded
                 if security.exchange:
-                    # Access to load
                     exchange_code = security.exchange.code
 
-                # Add to detached list
+                # Access futures relationship to ensure it's loaded
+                has_futures = security.futures is not None
+
                 detached_securities.append(security)
 
-            # Expunge all objects from session
             db.expunge_all()
 
             logger.info(f"Selected {len(detached_securities)} securities")
@@ -398,8 +382,8 @@ class OHLCVFetcher:
 
                     logger.error(f"Error processing {security.symbol}: {str(e)}")
 
-        if verbose:
-            logger.info(f"Completed batch {batch_idx}: {batch_results['securities_success']} success, {batch_results['securities_error']} error")
+            if verbose:
+                logger.info(f"Completed batch {batch_idx}: {batch_results['securities_success']} success, {batch_results['securities_error']} error")
 
         return batch_results
 
