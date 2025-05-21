@@ -45,6 +45,7 @@ def parse_args():
 
     # Update all command
     update_parser = subparsers.add_parser("update-all", help="Update both historical and today's data")
+    update_parser.add_argument("--full-history", action="store_true", help="Fetch full history for stocks instead of just recent data")
     update_parser.add_argument("--security-ids", help="Comma-separated list of security UUIDs")
     update_parser.add_argument("--exchanges", help="Comma-separated list of exchange codes")
     update_parser.add_argument("--segments", help="Comma-separated list of segment types")
@@ -245,6 +246,7 @@ def execute_update_all_command(args):
     security_ids = split_comma_separated(getattr(args, "security_ids", None))
     exchanges = split_comma_separated(getattr(args, "exchanges", None))
     segments = split_comma_separated(getattr(args, "segments", None))
+    full_history = getattr(args, "full_history", False)
     days_back = getattr(args, "days_back", 7)
     skip_today = getattr(args, "skip_today", False)
     workers = getattr(args, "workers", 8)
@@ -253,7 +255,7 @@ def execute_update_all_command(args):
     output_file = getattr(args, "output_file", None)
 
     # Execute operation
-    result = fetcher.update_all_data(security_ids=security_ids, exchanges=exchanges, segments=segments, days_back=days_back, include_today=not skip_today, workers=workers, batch_size=batch_size, verbose=verbose)
+    result = fetcher.update_all_data(security_ids=security_ids, exchanges=exchanges, segments=segments, days_back=days_back, include_today=not skip_today, workers=workers, batch_size=batch_size, verbose=verbose, full_history=full_history)
 
     # Save output if requested
     save_output(result, output_file)

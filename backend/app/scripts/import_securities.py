@@ -88,7 +88,7 @@ class SecuritiesImporter:
         if "NSE" not in self.exchanges_map:
             # Use a fixed UUID for NSE
             nse_id = uuid.UUID("984ffe13-dcfb-4362-8291-5f2bee2645ef")
-            nse = Exchange(id=nse_id, name="National Stock Exchange of India", code="NSE", country="India", timezone="Asia/Kolkata", is_active=True)
+            nse = Exchange(id=nse_id, name="National Stock Exchange", code="NSE", country="India", timezone="Asia/Kolkata", is_active=True)
             exchanges_to_create.append(nse)
             self.exchanges_map["NSE"] = nse_id
 
