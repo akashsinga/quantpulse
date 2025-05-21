@@ -3,6 +3,7 @@
 Securities Import System for QuantPulse
 
 This script imports securities data from Dhan API into the QuantPulse database.
+Modified to import only NSE (National Stock Exchange of India) securities.
 Handles incremental updates, includes parallel processing for performance,
 and implements comprehensive error handling and logging with progress bars.
 
@@ -83,6 +84,7 @@ class SecuritiesImporter:
         # Create exchanges with fixed IDs for consistency if they don't exist
         exchanges_to_create = []
 
+        # Ensure NSE is always present
         if "NSE" not in self.exchanges_map:
             # Use a fixed UUID for NSE
             nse_id = uuid.UUID("984ffe13-dcfb-4362-8291-5f2bee2645ef")
@@ -90,38 +92,13 @@ class SecuritiesImporter:
             exchanges_to_create.append(nse)
             self.exchanges_map["NSE"] = nse_id
 
+        # We'll add BSE for completeness, but we won't import its securities
         if "BSE" not in self.exchanges_map:
             # Use a different fixed UUID for BSE
             bse_id = uuid.UUID("56d68a9b-c756-4baa-9786-3d1a7b2cfb2c")
-            bse = Exchange(id=bse_id, name="Bombay Stock Exchange", code="BSE", country="India", timezone="Asia/Kolkata", is_active=True)
+            bse = Exchange(id=bse_id, name="Bombay Stock Exchange", code="BSE", country="India", timezone="Asia/Kolkata", is_active=False)  # Set to inactive
             exchanges_to_create.append(bse)
             self.exchanges_map["BSE"] = bse_id
-
-        # Check if we need to add more exchanges from the Dhan data
-        # This handles cases where securities reference exchanges other than NSE and BSE
-        unique_exchanges = set()
-        try:
-            # Try to download the CSV to get exchange codes
-            csv_url = settings.DHAN_SCRIP_MASTER_URL
-            response = requests.get(csv_url, timeout=60)
-            if response.status_code == 200:
-                csv_content = response.content.decode("utf-8")
-                df = pd.read_csv(io.StringIO(csv_content), low_memory=False)
-                # Extract unique exchange codes
-                if "SEM_EXM_EXCH_ID" in df.columns:
-                    unique_exchanges = set(df["SEM_EXM_EXCH_ID"].dropna().unique())
-        except Exception as e:
-            logger.error(f"Error fetching exchange data: {e}")
-
-        # Create any missing exchanges from the CSV
-        for exchange_code in unique_exchanges:
-            if exchange_code and exchange_code not in self.exchanges_map:
-                # Generate a deterministic UUID from the exchange code
-                exchange_id = uuid.uuid5(uuid.NAMESPACE_DNS, f"exchange.{exchange_code}.quantpulse.app")
-                new_exchange = Exchange(id=exchange_id, name=f"{exchange_code} Exchange", code=exchange_code, country="India", timezone="Asia/Kolkata", is_active=True)  # Default name  # Default  # Default
-                exchanges_to_create.append(new_exchange)
-                self.exchanges_map[exchange_code] = exchange_id
-                logger.info(f"Adding exchange: {exchange_code} with ID: {exchange_id}")
 
         # Add all exchanges in one batch if needed
         if exchanges_to_create:
@@ -220,7 +197,13 @@ class SecuritiesImporter:
             raise RuntimeError("Failed to download securities data and no backup available")
 
     def filter_data(self, df: pd.DataFrame) -> Tuple[pd.DataFrame, pd.DataFrame]:
-        """Filter data to include only relevant securities.
+        """Filter data to include only relevant NSE securities.
+
+        Filtering criteria:
+        1. Exchange only NSE
+        2. For Stocks: SEM_SEGMENT == E and SEM_EXCH_INSTRUMENT_TYPE == ES
+        3. For Indices: SEM_SEGMENT == I and SEM_EXCH_INSTRUMENT_TYPE == INDEX
+        4. For Futures: SEM_SEGMENT == D and SEM_EXCH_INSTRUMENT_TYPE in [FUTSTK, FUTIDX]
 
         Args:
             df: DataFrame with all securities
@@ -228,16 +211,30 @@ class SecuritiesImporter:
         Returns:
             Tuple of (securities_df, futures_df)
         """
-        # Filter main securities (stocks and indices)
-        securities_df = df[(df["SEM_SEGMENT"] == "E") | ((df["SEM_SEGMENT"] == "I") & (df["SEM_EXCH_INSTRUMENT_TYPE"] == "INDXX"))]
+        # Filter for NSE exchange only
+        nse_df = df[df["SEM_EXM_EXCH_ID"] == "NSE"]
 
-        # Filter futures
-        futures_df = df[(df["SEM_SEGMENT"] == "D") & (df["SEM_INSTRUMENT_NAME"].str.startswith("FUTIDX") | df["SEM_INSTRUMENT_NAME"].str.startswith("FUTSTK"))]
+        if len(nse_df) == 0:
+            logger.warning("No NSE securities found in the data. Check the exchange codes in the source data.")
+            # Return empty DataFrames to avoid errors
+            return pd.DataFrame(), pd.DataFrame()
 
-        logger.info(f"Filtered {len(securities_df)} securities and {len(futures_df)} futures")
+        # Filter main securities (stocks and indices) from NSE with specific instrument types
+        stocks_df = nse_df[(nse_df["SEM_SEGMENT"] == "E") & (nse_df["SEM_EXCH_INSTRUMENT_TYPE"] == "ES")]
+        indices_df = nse_df[(nse_df["SEM_SEGMENT"] == "I") & (nse_df["SEM_EXCH_INSTRUMENT_TYPE"] == "INDEX")]
+
+        # Combine stocks and indices
+        securities_df = pd.concat([stocks_df, indices_df])
+
+        # Filter futures from NSE with specific instrument types
+        futures_df = nse_df[(nse_df["SEM_SEGMENT"] == "D") & (nse_df["SEM_INSTRUMENT_NAME"].isin(["FUTSTK", "FUTIDX"]))]
+
+        logger.info(f"Filtered {len(stocks_df)} NSE stocks and {len(indices_df)} NSE indices for a total of {len(securities_df)} securities")
+        logger.info(f"Filtered {len(futures_df)} NSE futures")
 
         if self.show_progress:
-            logger.info(f"Filtered {len(securities_df)} securities and {len(futures_df)} futures")
+            logger.info(f"Filtered {len(stocks_df)} NSE stocks and {len(indices_df)} NSE indices")
+            logger.info(f"Filtered {len(futures_df)} NSE futures")
 
         return securities_df, futures_df
 
@@ -272,14 +269,20 @@ class SecuritiesImporter:
         """
         result = {"status": "unknown", "error": None, "security": None}
 
+        # Skip non-NSE securities
+        if row["SEM_EXM_EXCH_ID"] != "NSE":
+            result["status"] = "skipped"
+            result["error"] = f"Skipping non-NSE exchange: {row['SEM_EXM_EXCH_ID']}"
+            return result
+
         # Create a new session for this operation
         db = SessionLocal()
         try:
-            # Get exchange ID
-            exchange_id = self.exchanges_map.get(row["SEM_EXM_EXCH_ID"])
+            # Get exchange ID for NSE
+            exchange_id = self.exchanges_map.get("NSE")
             if not exchange_id:
                 result["status"] = "skipped"
-                result["error"] = f"Exchange not found: {row['SEM_EXM_EXCH_ID']}"
+                result["error"] = f"Exchange not found: NSE"
                 return result
 
             # Check if security already exists - check both by external_id and by symbol+exchange
@@ -419,7 +422,7 @@ class SecuritiesImporter:
             securities_df: DataFrame with securities to process
         """
         start_time = time.time()
-        logger.info(f"Processing {len(securities_df)} securities with {self.workers} workers")
+        logger.info(f"Processing {len(securities_df)} NSE securities with {self.workers} workers")
 
         # Split data into chunks
         chunk_size = 100
@@ -430,7 +433,7 @@ class SecuritiesImporter:
 
         # Log progress periodically instead of using tqdm
         if self.show_progress:
-            logger.info(f"Processing {len(securities_df)} securities in {len(chunks)} chunks...")
+            logger.info(f"Processing {len(securities_df)} NSE securities in {len(chunks)} chunks...")
 
         # Process chunks in parallel
         with concurrent.futures.ThreadPoolExecutor(max_workers=self.workers) as executor:
@@ -496,6 +499,12 @@ class SecuritiesImporter:
             Result dictionary
         """
         result = {"status": "unknown", "error": None, "future": None}
+
+        # Skip non-NSE securities
+        if row["SEM_EXM_EXCH_ID"] != "NSE":
+            result["status"] = "skipped"
+            result["error"] = f"Skipping non-NSE exchange: {row['SEM_EXM_EXCH_ID']}"
+            return result
 
         # Create a new session for this operation
         db = SessionLocal()
@@ -653,7 +662,7 @@ class SecuritiesImporter:
             futures_df: DataFrame with futures to process
         """
         start_time = time.time()
-        logger.info(f"Processing {len(futures_df)} futures with {self.workers} workers")
+        logger.info(f"Processing {len(futures_df)} NSE futures with {self.workers} workers")
 
         # Split data into chunks
         chunk_size = 100
@@ -664,7 +673,7 @@ class SecuritiesImporter:
 
         # Log progress periodically instead of using tqdm
         if self.show_progress:
-            logger.info(f"Processing {len(futures_df)} futures in {len(chunks)} chunks...")
+            logger.info(f"Processing {len(futures_df)} NSE futures in {len(chunks)} chunks...")
 
         # Process chunks in parallel
         with concurrent.futures.ThreadPoolExecutor(max_workers=self.workers) as executor:
@@ -744,13 +753,14 @@ class SecuritiesImporter:
             Metrics dictionary
         """
         start_time = time.time()
-        logger.info(f"Starting securities import (full_refresh={self.full_refresh})")
+        logger.info(f"Starting NSE securities import (full_refresh={self.full_refresh})")
 
         if self.show_progress:
-            logger.info(f"\n{'='*80}\n QuantPulse Securities Import\n{'='*80}")
+            logger.info(f"\n{'='*80}\n QuantPulse NSE Securities Import\n{'='*80}")
             logger.info(f" Mode: {'Full Refresh' if self.full_refresh else 'Incremental Update'}")
             logger.info(f" Workers: {self.workers}")
             logger.info(f" Started at: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
+            logger.info(f" Importing only NSE securities")
 
         try:
             # Fetch and filter data
