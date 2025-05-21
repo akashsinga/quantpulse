@@ -4,6 +4,7 @@ from datetime import datetime, date, timedelta
 from typing import List, Dict, Tuple, Optional, Any, Union
 from sqlalchemy import text, func, and_, or_
 from sqlalchemy.dialects.postgresql import insert
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 from app.db.session import get_db, SessionLocal
 from app.db.models.ohlcv_daily import OHLCVDaily
@@ -43,10 +44,25 @@ class OHLCVRepository:
 
         with get_db() as db:
             try:
+                # First, deduplicate records by time to avoid CardinalityViolation
+                # Create a dictionary with time as key to eliminate duplicates
+                unique_records_dict = {}
+                for record in records:
+                    # Use time as key for deduplication
+                    time_key = record["time"].isoformat() if isinstance(record["time"], datetime) else str(record["time"])
+                    # Keep the most recent record (assuming records are in chronological order)
+                    unique_records_dict[time_key] = record
+
+                # Convert back to list
+                deduplicated_records = list(unique_records_dict.values())
+
+                if len(deduplicated_records) < len(records):
+                    logger.warning(f"Removed {len(records) - len(deduplicated_records)} duplicate records for security {security_id}")
+
                 # Process in smaller batches to avoid memory issues
-                batch_size = 500
-                for i in range(0, len(records), batch_size):
-                    batch = records[i : i + batch_size]
+                batch_size = 100  # Reduced from 500 to be safer
+                for i in range(0, len(deduplicated_records), batch_size):
+                    batch = deduplicated_records[i : i + batch_size]
 
                     # Convert batch to database format
                     db_records = []
@@ -59,25 +75,23 @@ class OHLCVRepository:
 
                         db_records.append(db_record)
 
-                    # Perform the upsert operation
-                    insert_stmt = insert(OHLCVDaily).values(db_records)
+                    # Instead of bulk insert, do individual inserts with ON CONFLICT handling
+                    for db_record in db_records:
+                        try:
+                            # Perform the upsert operation for each record individually
+                            insert_stmt = insert(OHLCVDaily).values(**db_record)
+                            upsert_stmt = insert_stmt.on_conflict_do_update(constraint="ohlcv_daily_pkey", set_={"open": insert_stmt.excluded.open, "high": insert_stmt.excluded.high, "low": insert_stmt.excluded.low, "close": insert_stmt.excluded.close, "volume": insert_stmt.excluded.volume, "source": insert_stmt.excluded.source})  # Primary key constraint
+                            result = db.execute(upsert_stmt)
+                            db.commit()
 
-                    # Specify the conflict resolution strategy
-                    upsert_stmt = insert_stmt.on_conflict_do_update(constraint="ohlcv_daily_pkey", set_={"open": insert_stmt.excluded.open, "high": insert_stmt.excluded.high, "low": insert_stmt.excluded.low, "close": insert_stmt.excluded.close, "volume": insert_stmt.excluded.volume, "source": insert_stmt.excluded.source})  # Primary key constraint
+                            # Assuming it's an insert if not a duplicate
+                            inserted += 1
+                        except SQLAlchemyError as e:
+                            db.rollback()
+                            logger.error(f"Error upserting record for security {security_id} at time {db_record['time']}: {str(e)}")
+                            continue
 
-                    # Execute and get result metadata
-                    result = db.execute(upsert_stmt)
-                    db.commit()
-
-                    # TimescaleDB doesn't directly support reporting inserted/updated counts
-                    # So we need to query to determine the count
-
-                    # This is a simplification - in a real implementation,
-                    # you would track which records were newly inserted vs updated
-                    batch_inserted = len(batch)
-                    inserted += batch_inserted
-
-                logger.info(f"Successfully upserted {len(records)} records for security {security_id}")
+                logger.info(f"Successfully upserted {inserted} records for security {security_id}")
                 return (inserted, updated, len(records))
 
             except Exception as e:
@@ -118,8 +132,8 @@ class OHLCVRepository:
                         SELECT time::date as record_date
                         FROM ohlcv_daily
                         WHERE security_id = :security_id
-                          AND time >= :start_date
-                          AND time <= :end_date
+                        AND time >= :start_date
+                        AND time <= :end_date
                         GROUP BY record_date
                         ORDER BY record_date
                     ),

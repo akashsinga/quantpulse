@@ -15,6 +15,12 @@ from utils.logger import get_logger
 logger = get_logger(__name__)
 
 
+class RateLimitException(Exception):
+    """Exception raised when rate limit is hit."""
+
+    pass
+
+
 class DhanAPIClient:
     """Client for interacting with Dhan API endpoints."""
 
@@ -58,7 +64,7 @@ class DhanAPIClient:
 
         self.last_request_time = time.time()
 
-    @retry(retry=retry_if_exception_type((requests.exceptions.RequestException, json.JSONDecodeError)), stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1.0, exp_base=2.0), reraise=True)  # Using hardcoded value instead of settings to avoid issues  # Using hardcoded values instead of settings
+    @retry(retry=retry_if_exception_type((RateLimitException, requests.exceptions.RequestException, json.JSONDecodeError)), stop=stop_after_attempt(5), wait=wait_exponential(multiplier=1.0, min=0.5, max=30.0), reraise=True)
     def _make_api_request(self, url: str, data: Dict[str, Any], method: str = "POST") -> Dict[str, Any]:
         """Make an API request with retry logic and rate limiting."""
         self._respect_rate_limit()
@@ -72,6 +78,10 @@ class DhanAPIClient:
                 response = requests.get(url, params=data, headers=self.headers, timeout=30)
 
             # Log detailed error information before raising an exception
+            if response.status_code == 429:
+                logger.warning("Rate limit hit, will retry with backoff")
+                raise RateLimitException("Rate limit exceeded")
+
             if response.status_code >= 400:
                 logger.error(f"API request error: Status code {response.status_code}")
                 logger.error(f"Request data: {data}")

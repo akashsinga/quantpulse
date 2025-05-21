@@ -167,7 +167,7 @@ def execute_historical_command(args):
     security_ids = split_comma_separated(getattr(args, "security_ids", None))
     exchanges = split_comma_separated(getattr(args, "exchanges", None))
     segments = split_comma_separated(getattr(args, "segments", None))
-    workers = getattr(args, "workers", 8)
+    workers = getattr(args, "workers", 4)
     batch_size = getattr(args, "batch_size", 50)
     verbose = getattr(args, "verbose", False)
     output_file = getattr(args, "output_file", None)
