@@ -3,6 +3,7 @@
 import json
 import time
 import asyncio
+import threading
 from datetime import datetime, date, timedelta
 from typing import Dict, List, Optional, Union, Any
 import aiohttp
@@ -10,7 +11,6 @@ import requests
 import os
 from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
 from dataclasses import dataclass
-import threading
 
 from app.config import settings
 from utils.logger import get_logger
@@ -178,7 +178,7 @@ class CircuitBreaker:
 
 
 class DhanAPIClient:
-    """Enhanced high-performance async Dhan API client."""
+    """Enhanced high-performance async Dhan API client with thread-safe session management."""
 
     def __init__(self):
         """Initialize the enhanced async Dhan API client."""
@@ -208,77 +208,111 @@ class DhanAPIClient:
         self.response_times = []
         self.max_response_times_tracked = 1000  # Limit memory usage
 
-        # Session management
-        self._session = None
-        self._session_lock = asyncio.Lock()
+        # Thread-local session storage to avoid event loop conflicts
+        self._local = threading.local()
 
         logger.info(f"Initialized enhanced Dhan API client")
         logger.info(f"Rate limiter config: min={self.rate_limiter.min_delay*1000:.1f}ms, max={self.rate_limiter.max_delay*1000:.1f}ms")
         logger.info(f"Circuit breaker config: threshold={self.circuit_breaker.failure_threshold}, timeout={self.circuit_breaker.timeout}s")
 
     async def _get_session(self) -> aiohttp.ClientSession:
-        """Get or create aiohttp session with optimized settings."""
-        if self._session is None or self._session.closed:
-            async with self._session_lock:
-                if self._session is None or self._session.closed:
-                    # Enhanced connector configuration
-                    connector = aiohttp.TCPConnector(limit=100, limit_per_host=50, keepalive_timeout=60, enable_cleanup_closed=True, use_dns_cache=True, ttl_dns_cache=600, resolver=aiohttp.AsyncResolver(), tcp_keepalive=True)  # Total connection pool size  # Per-host limit  # Keep connections alive longer  # 10 minutes DNS cache  # Better DNS resolution
+        """Get or create aiohttp session with thread-local storage."""
+        # Use thread-local storage to avoid event loop conflicts
+        if not hasattr(self._local, "session") or self._local.session.closed:
+            # Use ThreadedResolver to avoid aiodns dependency
+            resolver = aiohttp.ThreadedResolver()
+            logger.debug("Creating new thread-local session with ThreadedResolver")
 
-                    # Enhanced timeout configuration
-                    timeout = aiohttp.ClientTimeout(total=45, connect=15, sock_read=30, sock_connect=15)  # Total timeout  # Connection timeout  # Socket read timeout  # Socket connect timeout
+            # Enhanced connector configuration - REMOVED tcp_keepalive
+            connector = aiohttp.TCPConnector(
+                limit=50,  # Reduced for thread-local sessions
+                limit_per_host=25,  # Reduced for thread-local sessions
+                keepalive_timeout=60,
+                enable_cleanup_closed=True,
+                use_dns_cache=True,
+                ttl_dns_cache=600,
+                resolver=resolver,
+                verify_ssl=True,
+                # REMOVED: tcp_keepalive=True  # This parameter doesn't exist in older aiohttp versions
+            )
 
-                    self._session = aiohttp.ClientSession(connector=connector, timeout=timeout, headers=self.headers, raise_for_status=False)  # Handle status codes manually
+            # Enhanced timeout configuration
+            timeout = aiohttp.ClientTimeout(total=45, connect=15, sock_read=30, sock_connect=15)
 
-                    logger.debug("Created enhanced aiohttp session")
+            self._local.session = aiohttp.ClientSession(connector=connector, timeout=timeout, headers=self.headers, raise_for_status=False)
 
-        return self._session
+            logger.debug("Created thread-local aiohttp session")
+
+        return self._local.session
 
     async def close(self):
         """Close the aiohttp session."""
-        if self._session and not self._session.closed:
-            await self._session.close()
-            logger.debug("Closed aiohttp session")
+        if hasattr(self._local, "session") and not self._local.session.closed:
+            await self._local.session.close()
+            logger.debug("Closed thread-local aiohttp session")
 
     async def _make_async_request(self, url: str, data: Dict[str, Any], method: str = "POST") -> Dict[str, Any]:
         """Make async API request with enhanced error handling."""
 
+        logger.info(f"_make_async_request called with URL: {url}")
+        logger.info(f"Request method: {method}")
+        logger.info(f"Request data: {data}")
+
         # Check circuit breaker
         if not self.circuit_breaker.can_execute():
             self.metrics.circuit_breaker_trips += 1
+            logger.error("Circuit breaker is OPEN")
             raise CircuitBreakerOpenError("Circuit breaker is OPEN - too many failures")
 
         # Apply adaptive rate limiting
         await self.rate_limiter.wait()
 
-        session = await self._get_session()
+        try:
+            session = await self._get_session()
+            logger.info("Session obtained successfully")
+        except Exception as e:
+            logger.error(f"Failed to get session: {str(e)}")
+            raise
+
         request_start = time.time()
 
         try:
             self.metrics.requests_total += 1
+            logger.info(f"Making {method} request to {url}")
 
             # Make request
             if method.upper() == "POST":
                 async with session.post(url, json=data) as response:
+                    logger.info(f"POST response status: {response.status}")
                     result = await self._process_response(response)
             else:
                 async with session.get(url, params=data) as response:
+                    logger.info(f"GET response status: {response.status}")
                     result = await self._process_response(response)
 
             # Track response time
             response_time = (time.time() - request_start) * 1000  # Convert to ms
             self._track_response_time(response_time)
 
+            logger.info(f"Request completed in {response_time:.2f}ms")
             return result
 
-        except RateLimitException:
-            # Don't count rate limits as failures for circuit breaker
-            self.metrics.rate_limit_hits += 1
-            raise
-        except Exception as e:
+        except aiohttp.ClientConnectorError as e:
+            logger.error(f"Connection error: {str(e)}")
             self.metrics.requests_error += 1
             self.circuit_breaker.on_failure()
             self.rate_limiter.on_error()
-            logger.debug(f"Request failed: {str(e)}")
+            raise
+        except RateLimitException:
+            logger.warning("Rate limit exception")
+            self.metrics.rate_limit_hits += 1
+            raise
+        except Exception as e:
+            logger.error(f"Request failed with exception: {str(e)}")
+            logger.error(f"Exception type: {type(e)}")
+            self.metrics.requests_error += 1
+            self.circuit_breaker.on_failure()
+            self.rate_limiter.on_error()
             raise
 
     async def _process_response(self, response: aiohttp.ClientResponse) -> Dict[str, Any]:
@@ -349,15 +383,25 @@ class DhanAPIClient:
 
         request_data = {"securityId": str(securityId), "exchangeSegment": exchangeSegment, "instrument": instrument, "expiryCode": expiryCode, "fromDate": fromDate, "toDate": toDate, "oi": oi}
 
+        # Add detailed debugging
+        logger.info(f"Making API request for security {securityId}")
+        logger.info(f"URL: {self.historical_url}")
+        logger.info(f"Request data: {request_data}")
+        logger.info(f"Headers: {self.headers}")
+
         try:
             response = await self._make_async_request(self.historical_url, request_data)
+            logger.info(f"API response for {securityId}: {response}")
             return self._parse_historical_response(response)
         except CircuitBreakerOpenError:
+            logger.error(f"Circuit breaker open for {securityId}")
             raise  # Re-raise circuit breaker errors
         except RateLimitException:
+            logger.error(f"Rate limit hit for {securityId}")
             raise  # Re-raise rate limit errors
         except Exception as e:
-            logger.debug(f"Historical data fetch failed for {securityId}: {str(e)}")
+            logger.error(f"API call failed for {securityId}: {str(e)}")
+            logger.error(f"Exception type: {type(e)}")
             return {"status": "error", "error": str(e), "data": []}
 
     # Sync wrapper for current data
@@ -508,7 +552,7 @@ class DhanAPIClient:
 
     async def health_check(self) -> Dict[str, Any]:
         """Perform health check of the API client."""
-        health_status = {"status": "healthy", "timestamp": datetime.now().isoformat(), "circuit_breaker_state": self.circuit_breaker.get_state(), "current_delay_ms": self.rate_limiter.get_current_delay_ms(), "session_status": "open" if self._session and not self._session.closed else "closed"}
+        health_status = {"status": "healthy", "timestamp": datetime.now().isoformat(), "circuit_breaker_state": self.circuit_breaker.get_state(), "current_delay_ms": self.rate_limiter.get_current_delay_ms(), "session_status": "thread_local"}
 
         # Perform a simple connectivity test
         try:
@@ -537,14 +581,6 @@ class DhanAPIClient:
 
     def __del__(self):
         """Enhanced cleanup on deletion."""
-        if self._session and not self._session.closed:
-            try:
-                loop = asyncio.get_event_loop()
-                if loop.is_running():
-                    loop.create_task(self.close())
-                else:
-                    # If no loop is running, we can't properly close the session
-                    logger.warning("Could not properly close aiohttp session - no event loop")
-            except Exception as e:
-                logger.debug(f"Error during cleanup: {e}")
-                pass  # Best effort cleanup
+        # For thread-local sessions, we can't easily clean them up in __del__
+        # They will be cleaned up when the thread ends
+        pass
