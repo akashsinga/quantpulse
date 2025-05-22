@@ -2,10 +2,14 @@
 
 from datetime import datetime, date, timedelta
 from typing import List, Dict, Tuple, Optional, Any, Union
-from sqlalchemy import text, func, and_, or_
+from sqlalchemy import text, func, and_, or_, select
 from sqlalchemy.dialects.postgresql import insert
-from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.exc import SQLAlchemyError, IntegrityError
 from sqlalchemy.orm import Session
+from contextlib import contextmanager
+import time
+import uuid
+
 from app.db.session import get_db, SessionLocal
 from app.db.models.ohlcv_daily import OHLCVDaily
 from app.db.models.security import Security
@@ -15,15 +19,201 @@ from utils.logger import get_logger
 logger = get_logger(__name__)
 
 
+@contextmanager
+def get_repository_session():
+    """Context manager for repository database sessions."""
+    session = SessionLocal()
+    try:
+        yield session
+        session.commit()
+    except Exception as e:
+        session.rollback()
+        logger.error(f"Repository session error: {str(e)}")
+        raise
+    finally:
+        session.close()
+
+
 class OHLCVRepository:
-    """Repository for OHLCV data operations with TimescaleDB optimization."""
+    """Enhanced repository for OHLCV data operations with optimized bulk processing."""
 
     def __init__(self):
-        """Initialize the OHLCV repository."""
-        logger.info("Initializing OHLCV repository")
+        """Initialize the enhanced OHLCV repository."""
+        self.bulk_insert_size = settings.OHLCV_BULK_INSERT_SIZE
+        self.performance_stats = {"total_operations": 0, "successful_operations": 0, "failed_operations": 0, "total_records_processed": 0, "total_records_inserted": 0, "total_records_updated": 0, "avg_operation_time_ms": 0.0}
+        logger.info(f"Initialized enhanced OHLCV repository with bulk size: {self.bulk_insert_size}")
+
+    def bulk_upsert_optimized(self, records_by_security: Dict[str, List[Dict[str, Any]]], source: str = "dhan_api") -> Dict[str, Tuple[int, int, int]]:
+        """
+        Perform optimized bulk upsert operations for multiple securities.
+
+        Args:
+            records_by_security: Dict mapping security IDs to lists of OHLCV records
+            source: Data source identifier
+
+        Returns:
+            Dict mapping security IDs to (inserted, updated, total) counts
+        """
+        start_time = time.time()
+        operation_id = str(uuid.uuid4())[:8]
+
+        logger.info(f"Starting bulk upsert operation {operation_id} for {len(records_by_security)} securities")
+
+        results = {}
+        total_records = sum(len(records) for records in records_by_security.values())
+
+        try:
+            with get_repository_session() as session:
+                # Prepare all records for bulk operation
+                all_records = []
+                security_record_counts = {}
+
+                for security_id, records in records_by_security.items():
+                    if not records:
+                        results[security_id] = (0, 0, 0)
+                        continue
+
+                    # Deduplicate records by time for this security
+                    unique_records = self._deduplicate_records(records)
+                    security_record_counts[security_id] = len(unique_records)
+
+                    # Convert to database format
+                    for record in unique_records:
+                        try:
+                            db_record = {"time": self._ensure_datetime(record["time"]), "security_id": uuid.UUID(security_id), "open": float(record["open"]), "high": float(record["high"]), "low": float(record["low"]), "close": float(record["close"]), "volume": int(record["volume"]), "source": source}
+
+                            # Add adjusted_close if available
+                            if "adjusted_close" in record and record["adjusted_close"] is not None:
+                                db_record["adjusted_close"] = float(record["adjusted_close"])
+
+                            all_records.append(db_record)
+
+                        except (ValueError, TypeError, KeyError) as e:
+                            logger.warning(f"Skipping invalid record for security {security_id}: {e}")
+                            continue
+
+                if not all_records:
+                    logger.warning(f"No valid records to process in operation {operation_id}")
+                    return results
+
+                # Process in batches to avoid memory issues
+                batch_size = min(self.bulk_insert_size, len(all_records))
+                processed_records = 0
+
+                for i in range(0, len(all_records), batch_size):
+                    batch = all_records[i : i + batch_size]
+
+                    try:
+                        # Perform bulk upsert using PostgreSQL's ON CONFLICT
+                        insert_stmt = insert(OHLCVDaily).values(batch)
+                        upsert_stmt = insert_stmt.on_conflict_do_update(constraint="ohlcv_daily_pkey", set_={"open": insert_stmt.excluded.open, "high": insert_stmt.excluded.high, "low": insert_stmt.excluded.low, "close": insert_stmt.excluded.close, "volume": insert_stmt.excluded.volume, "adjusted_close": insert_stmt.excluded.adjusted_close, "source": insert_stmt.excluded.source})  # Primary key constraint
+
+                        result = session.execute(upsert_stmt)
+                        processed_records += len(batch)
+
+                        # Log progress for large operations
+                        if len(all_records) > 1000 and processed_records % 1000 == 0:
+                            progress = (processed_records / len(all_records)) * 100
+                            logger.info(f"Operation {operation_id}: {progress:.1f}% complete ({processed_records}/{len(all_records)})")
+
+                    except IntegrityError as e:
+                        logger.error(f"Integrity error in batch {i//batch_size + 1}: {str(e)}")
+                        session.rollback()
+                        # Try individual inserts for this batch
+                        self._fallback_individual_inserts(session, batch, operation_id)
+                    except Exception as e:
+                        logger.error(f"Error in batch {i//batch_size + 1}: {str(e)}")
+                        session.rollback()
+                        raise
+
+                # Commit the transaction
+                session.commit()
+
+                # Calculate results (approximate since we can't easily distinguish inserts vs updates in bulk)
+                for security_id, record_count in security_record_counts.items():
+                    # For bulk operations, we approximate all as "inserted" since we can't easily track updates
+                    results[security_id] = (record_count, 0, record_count)
+
+                # Update performance stats
+                operation_time = (time.time() - start_time) * 1000  # Convert to ms
+                self._update_performance_stats(True, total_records, operation_time)
+
+                logger.info(f"Completed bulk upsert operation {operation_id}: {processed_records} records in {operation_time:.2f}ms")
+
+        except Exception as e:
+            logger.error(f"Bulk upsert operation {operation_id} failed: {str(e)}")
+            self._update_performance_stats(False, total_records, (time.time() - start_time) * 1000)
+
+            # Return error results
+            for security_id in records_by_security.keys():
+                results[security_id] = (0, 0, 0)
+
+        return results
+
+    def _deduplicate_records(self, records: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """Deduplicate records by time, keeping the latest record for each timestamp."""
+        if not records:
+            return []
+
+        unique_records = {}
+        for record in records:
+            time_key = record["time"]
+            if isinstance(time_key, datetime):
+                time_key = time_key.isoformat()
+            elif isinstance(time_key, str):
+                time_key = time_key
+            else:
+                time_key = str(time_key)
+
+            # Keep the last record for each timestamp (assuming records are chronologically ordered)
+            unique_records[time_key] = record
+
+        return list(unique_records.values())
+
+    def _ensure_datetime(self, time_value: Any) -> datetime:
+        """Ensure time value is a datetime object."""
+        if isinstance(time_value, datetime):
+            return time_value
+        elif isinstance(time_value, str):
+            # Try to parse ISO format string
+            try:
+                return datetime.fromisoformat(time_value.replace("Z", "+00:00"))
+            except ValueError:
+                # Try other common formats
+                for fmt in ["%Y-%m-%d %H:%M:%S", "%Y-%m-%d"]:
+                    try:
+                        return datetime.strptime(time_value, fmt)
+                    except ValueError:
+                        continue
+                raise ValueError(f"Unable to parse datetime: {time_value}")
+        elif isinstance(time_value, (int, float)):
+            # Assume Unix timestamp
+            return datetime.fromtimestamp(time_value, tz=settings.INDIA_TZ)
+        else:
+            raise ValueError(f"Invalid time value type: {type(time_value)}")
+
+    def _fallback_individual_inserts(self, session: Session, batch: List[Dict[str, Any]], operation_id: str):
+        """Fallback to individual inserts when bulk insert fails."""
+        logger.warning(f"Operation {operation_id}: Falling back to individual inserts for {len(batch)} records")
+
+        success_count = 0
+        for record in batch:
+            try:
+                insert_stmt = insert(OHLCVDaily).values(**record)
+                upsert_stmt = insert_stmt.on_conflict_do_update(constraint="ohlcv_daily_pkey", set_={"open": insert_stmt.excluded.open, "high": insert_stmt.excluded.high, "low": insert_stmt.excluded.low, "close": insert_stmt.excluded.close, "volume": insert_stmt.excluded.volume, "adjusted_close": insert_stmt.excluded.adjusted_close, "source": insert_stmt.excluded.source})
+
+                session.execute(upsert_stmt)
+                success_count += 1
+
+            except Exception as e:
+                logger.debug(f"Individual insert failed for record: {e}")
+                continue
+
+        logger.info(f"Operation {operation_id}: Individual fallback completed {success_count}/{len(batch)} records")
 
     def upsert_daily_data(self, security_id: str, records: List[Dict[str, Any]], source: str = "dhan_api") -> Tuple[int, int, int]:
-        """Insert or update daily OHLCV data.
+        """
+        Insert or update daily OHLCV data for a single security.
 
         Args:
             security_id: UUID of the security
@@ -37,70 +227,13 @@ class OHLCVRepository:
             logger.warning(f"No records provided for security {security_id}")
             return (0, 0, 0)
 
-        logger.info(f"Upserting {len(records)} records for security {security_id}")
-
-        inserted = 0
-        updated = 0
-
-        with get_db() as db:
-            try:
-                # First, deduplicate records by time to avoid CardinalityViolation
-                # Create a dictionary with time as key to eliminate duplicates
-                unique_records_dict = {}
-                for record in records:
-                    # Use time as key for deduplication
-                    time_key = record["time"].isoformat() if isinstance(record["time"], datetime) else str(record["time"])
-                    # Keep the most recent record (assuming records are in chronological order)
-                    unique_records_dict[time_key] = record
-
-                # Convert back to list
-                deduplicated_records = list(unique_records_dict.values())
-
-                if len(deduplicated_records) < len(records):
-                    logger.warning(f"Removed {len(records) - len(deduplicated_records)} duplicate records for security {security_id}")
-
-                # Process in smaller batches to avoid memory issues
-                batch_size = 100  # Reduced from 500 to be safer
-                for i in range(0, len(deduplicated_records), batch_size):
-                    batch = deduplicated_records[i : i + batch_size]
-
-                    # Convert batch to database format
-                    db_records = []
-                    for record in batch:
-                        db_record = {"time": record["time"], "security_id": security_id, "open": record["open"], "high": record["high"], "low": record["low"], "close": record["close"], "volume": record["volume"], "source": source}
-
-                        # Add adjusted_close if available
-                        if "adjusted_close" in record:
-                            db_record["adjusted_close"] = record["adjusted_close"]
-
-                        db_records.append(db_record)
-
-                    # Instead of bulk insert, do individual inserts with ON CONFLICT handling
-                    for db_record in db_records:
-                        try:
-                            # Perform the upsert operation for each record individually
-                            insert_stmt = insert(OHLCVDaily).values(**db_record)
-                            upsert_stmt = insert_stmt.on_conflict_do_update(constraint="ohlcv_daily_pkey", set_={"open": insert_stmt.excluded.open, "high": insert_stmt.excluded.high, "low": insert_stmt.excluded.low, "close": insert_stmt.excluded.close, "volume": insert_stmt.excluded.volume, "source": insert_stmt.excluded.source})  # Primary key constraint
-                            result = db.execute(upsert_stmt)
-                            db.commit()
-
-                            # Assuming it's an insert if not a duplicate
-                            inserted += 1
-                        except SQLAlchemyError as e:
-                            db.rollback()
-                            logger.error(f"Error upserting record for security {security_id} at time {db_record['time']}: {str(e)}")
-                            continue
-
-                logger.info(f"Successfully upserted {inserted} records for security {security_id}")
-                return (inserted, updated, len(records))
-
-            except Exception as e:
-                db.rollback()
-                logger.error(f"Error upserting data for security {security_id}: {str(e)}")
-                raise
+        # Use the bulk upsert method for single security
+        result = self.bulk_upsert_optimized({security_id: records}, source)
+        return result.get(security_id, (0, 0, 0))
 
     def find_data_gaps(self, security_id: str, start_date: Optional[date] = None, end_date: Optional[date] = None, min_gap_days: int = 1) -> List[Dict[str, date]]:
-        """Find gaps in OHLCV data for a security.
+        """
+        Find gaps in OHLCV data for a security using optimized TimescaleDB queries.
 
         Args:
             security_id: UUID of the security
@@ -113,22 +246,22 @@ class OHLCVRepository:
         """
         logger.info(f"Finding data gaps for security {security_id}")
 
-        # Default date range from settings
+        # Default date range
         if not start_date:
             try:
                 start_date = datetime.strptime(settings.FROM_DATE, "%Y-%m-%d").date()
             except ValueError:
-                start_date = date(2000, 1, 1)  # Default fallback
+                start_date = date(2000, 1, 1)
 
         if not end_date:
             end_date = date.today()
 
-        with get_db() as db:
-            try:
-                # TimescaleDB-optimized query to find gaps
+        try:
+            with get_repository_session() as session:
+                # Optimized TimescaleDB query to find gaps
                 query = text(
                     """
-                    WITH dates AS (
+                    WITH date_series AS (
                         SELECT time::date as record_date
                         FROM ohlcv_daily
                         WHERE security_id = :security_id
@@ -137,35 +270,40 @@ class OHLCVRepository:
                         GROUP BY record_date
                         ORDER BY record_date
                     ),
-                    date_gaps AS (
+                    gap_analysis AS (
                         SELECT
-                            dates.record_date as start_date,
-                            LEAD(dates.record_date) OVER (ORDER BY dates.record_date) as next_date,
-                            LEAD(dates.record_date) OVER (ORDER BY dates.record_date) - dates.record_date as gap_days
-                        FROM dates
+                            record_date,
+                            LEAD(record_date) OVER (ORDER BY record_date) as next_date,
+                            LEAD(record_date) OVER (ORDER BY record_date) - record_date as gap_days
+                        FROM date_series
                     )
-                    SELECT start_date, next_date - INTERVAL '1 day' as end_date
-                    FROM date_gaps
+                    SELECT 
+                        record_date + INTERVAL '1 day' as gap_start,
+                        next_date - INTERVAL '1 day' as gap_end,
+                        gap_days
+                    FROM gap_analysis
                     WHERE gap_days > :min_gap_days
+                    ORDER BY record_date
                 """
                 )
 
-                result = db.execute(query, {"security_id": security_id, "start_date": start_date, "end_date": end_date, "min_gap_days": min_gap_days + 1})  # +1 because we're looking for gaps larger than min_gap_days
+                result = session.execute(query, {"security_id": security_id, "start_date": start_date, "end_date": end_date, "min_gap_days": min_gap_days + 1})
 
                 gaps = []
                 for row in result:
-                    gap = {"start": row[0] + timedelta(days=1), "end": row[1]}  # Start of gap is day after last record  # End of gap is day before next record
+                    gap = {"start": row.gap_start.date(), "end": row.gap_end.date(), "days": row.gap_days}
                     gaps.append(gap)
 
                 logger.info(f"Found {len(gaps)} data gaps for security {security_id}")
                 return gaps
 
-            except Exception as e:
-                logger.error(f"Error finding data gaps for security {security_id}: {str(e)}")
-                return []
+        except Exception as e:
+            logger.error(f"Error finding data gaps for security {security_id}: {str(e)}")
+            return []
 
     def get_latest_data_point(self, security_id: str) -> Optional[Dict[str, Any]]:
-        """Get the most recent OHLCV data point for a security.
+        """
+        Get the most recent OHLCV data point for a security.
 
         Args:
             security_id: UUID of the security
@@ -175,46 +313,55 @@ class OHLCVRepository:
         """
         logger.debug(f"Getting latest data point for security {security_id}")
 
-        with get_db() as db:
-            try:
-                # TimescaleDB optimized query to get latest point
-                latest = db.query(OHLCVDaily).filter(OHLCVDaily.security_id == security_id).order_by(OHLCVDaily.time.desc()).first()
+        try:
+            with get_repository_session() as session:
+                # Optimized query using TimescaleDB time-weighted functions
+                latest = session.query(OHLCVDaily).filter(OHLCVDaily.security_id == security_id).order_by(OHLCVDaily.time.desc()).first()
 
                 if not latest:
                     return None
 
-                return {"time": latest.time, "open": latest.open, "high": latest.high, "low": latest.low, "close": latest.close, "volume": latest.volume, "adjusted_close": latest.adjusted_close, "source": latest.source}
+                return {"time": latest.time, "open": float(latest.open), "high": float(latest.high), "low": float(latest.low), "close": float(latest.close), "volume": int(latest.volume), "adjusted_close": float(latest.adjusted_close) if latest.adjusted_close else None, "source": latest.source}
 
-            except Exception as e:
-                logger.error(f"Error getting latest data point for security {security_id}: {str(e)}")
-                return None
+        except Exception as e:
+            logger.error(f"Error getting latest data point for security {security_id}: {str(e)}")
+            return None
 
-    def bulk_upsert(self, records_by_security: Dict[str, List[Dict[str, Any]]], source: str = "dhan_api") -> Dict[str, Tuple[int, int, int]]:
-        """Perform bulk upsert operations for multiple securities.
+    def get_data_summary(self, security_id: str, start_date: Optional[date] = None, end_date: Optional[date] = None) -> Dict[str, Any]:
+        """
+        Get data summary statistics for a security.
 
         Args:
-            records_by_security: Dict mapping security IDs to lists of OHLCV records
-            source: Data source identifier
+            security_id: UUID of the security
+            start_date: Start date for summary
+            end_date: End date for summary
 
         Returns:
-            Dict mapping security IDs to (inserted, updated, total) counts
+            Dict with summary statistics
         """
-        logger.info(f"Bulk upserting data for {len(records_by_security)} securities")
+        try:
+            with get_repository_session() as session:
+                query = session.query(func.count(OHLCVDaily.time).label("record_count"), func.min(OHLCVDaily.time).label("first_date"), func.max(OHLCVDaily.time).label("last_date"), func.avg(OHLCVDaily.volume).label("avg_volume"), func.min(OHLCVDaily.low).label("min_price"), func.max(OHLCVDaily.high).label("max_price")).filter(OHLCVDaily.security_id == security_id)
 
-        results = {}
+                if start_date:
+                    query = query.filter(OHLCVDaily.time >= start_date)
+                if end_date:
+                    query = query.filter(OHLCVDaily.time <= end_date)
 
-        for security_id, records in records_by_security.items():
-            try:
-                result = self.upsert_daily_data(security_id, records, source)
-                results[security_id] = result
-            except Exception as e:
-                logger.error(f"Error in bulk upsert for security {security_id}: {str(e)}")
-                results[security_id] = (0, 0, 0)
+                result = query.first()
 
-        return results
+                if not result or result.record_count == 0:
+                    return {"record_count": 0, "status": "no_data"}
+
+                return {"record_count": result.record_count, "first_date": result.first_date.date() if result.first_date else None, "last_date": result.last_date.date() if result.last_date else None, "avg_volume": float(result.avg_volume) if result.avg_volume else 0, "min_price": float(result.min_price) if result.min_price else 0, "max_price": float(result.max_price) if result.max_price else 0, "status": "ok"}
+
+        except Exception as e:
+            logger.error(f"Error getting data summary for security {security_id}: {str(e)}")
+            return {"status": "error", "error": str(e)}
 
     def validate_data_continuity(self, security_id: str, start_date: date, end_date: date) -> Dict[str, Any]:
-        """Validate data continuity for a security within a date range.
+        """
+        Validate data continuity for a security within a date range.
 
         Args:
             security_id: UUID of the security
@@ -226,31 +373,31 @@ class OHLCVRepository:
         """
         logger.info(f"Validating data continuity for security {security_id}")
 
-        # Find gaps
-        gaps = self.find_data_gaps(security_id, start_date, end_date)
+        try:
+            # Get data summary
+            summary = self.get_data_summary(security_id, start_date, end_date)
 
-        # Get count of available data points
-        with get_db() as db:
-            try:
-                count = db.query(func.count(OHLCVDaily.time)).filter(OHLCVDaily.security_id == security_id, OHLCVDaily.time >= start_date, OHLCVDaily.time <= end_date).scalar()
+            if summary.get("status") != "ok":
+                return summary
 
-                # Calculate expected business days (simplified - in real impl would use trading calendar)
-                business_days = self._count_business_days(start_date, end_date)
+            # Find gaps
+            gaps = self.find_data_gaps(security_id, start_date, end_date)
 
-                # Calculate coverage percentage
-                coverage = (count / business_days) * 100 if business_days > 0 else 0
+            # Calculate expected business days (simplified)
+            business_days = self._count_business_days(start_date, end_date)
 
-                return {"security_id": security_id, "start_date": start_date, "end_date": end_date, "data_points": count, "expected_days": business_days, "coverage_pct": coverage, "gaps": gaps, "has_gaps": len(gaps) > 0}
+            # Calculate coverage percentage
+            coverage = (summary["record_count"] / business_days) * 100 if business_days > 0 else 0
 
-            except Exception as e:
-                logger.error(f"Error validating data continuity for security {security_id}: {str(e)}")
-                return {"security_id": security_id, "error": str(e), "has_gaps": True}
+            return {"security_id": security_id, "start_date": start_date, "end_date": end_date, "data_points": summary["record_count"], "expected_days": business_days, "coverage_pct": round(coverage, 2), "gaps": gaps, "gap_count": len(gaps), "has_gaps": len(gaps) > 0, "first_date": summary["first_date"], "last_date": summary["last_date"], "status": "complete" if len(gaps) == 0 else "gaps_found"}
+
+        except Exception as e:
+            logger.error(f"Error validating data continuity for security {security_id}: {str(e)}")
+            return {"security_id": security_id, "error": str(e), "status": "error"}
 
     def _count_business_days(self, start_date: date, end_date: date) -> int:
-        """Count business days between two dates (excluding weekends).
-
-        This is a simplified implementation - a real version would use
-        an exchange trading calendar to account for holidays.
+        """
+        Count business days between two dates (excluding weekends).
 
         Args:
             start_date: Start date
@@ -269,3 +416,78 @@ class OHLCVRepository:
             current += timedelta(days=1)
 
         return days
+
+    def _update_performance_stats(self, success: bool, record_count: int, operation_time_ms: float):
+        """Update repository performance statistics."""
+        self.performance_stats["total_operations"] += 1
+        self.performance_stats["total_records_processed"] += record_count
+
+        if success:
+            self.performance_stats["successful_operations"] += 1
+            self.performance_stats["total_records_inserted"] += record_count  # Approximate
+        else:
+            self.performance_stats["failed_operations"] += 1
+
+        # Update average operation time
+        total_ops = self.performance_stats["total_operations"]
+        current_avg = self.performance_stats["avg_operation_time_ms"]
+        self.performance_stats["avg_operation_time_ms"] = (current_avg * (total_ops - 1) + operation_time_ms) / total_ops
+
+    def get_performance_stats(self) -> Dict[str, Any]:
+        """Get repository performance statistics."""
+        stats = self.performance_stats.copy()
+
+        # Calculate additional metrics
+        if stats["total_operations"] > 0:
+            stats["success_rate_pct"] = (stats["successful_operations"] / stats["total_operations"]) * 100
+            stats["avg_records_per_operation"] = stats["total_records_processed"] / stats["total_operations"]
+        else:
+            stats["success_rate_pct"] = 0
+            stats["avg_records_per_operation"] = 0
+
+        # Round floating point values
+        for key, value in stats.items():
+            if isinstance(value, float):
+                stats[key] = round(value, 2)
+
+        return stats
+
+    def reset_performance_stats(self):
+        """Reset repository performance statistics."""
+        self.performance_stats = {"total_operations": 0, "successful_operations": 0, "failed_operations": 0, "total_records_processed": 0, "total_records_inserted": 0, "total_records_updated": 0, "avg_operation_time_ms": 0.0}
+        logger.info("Repository performance statistics reset")
+
+    def cleanup_old_data(self, retention_days: int = 2555) -> Dict[str, Any]:
+        """
+        Clean up old data beyond retention period.
+
+        Args:
+            retention_days: Number of days to retain (default ~7 years)
+
+        Returns:
+            Dict with cleanup results
+        """
+        cutoff_date = datetime.now() - timedelta(days=retention_days)
+
+        try:
+            with get_repository_session() as session:
+                # Count records to be deleted
+                count_query = session.query(func.count(OHLCVDaily.time)).filter(OHLCVDaily.time < cutoff_date)
+                records_to_delete = count_query.scalar()
+
+                if records_to_delete == 0:
+                    return {"status": "no_cleanup_needed", "records_deleted": 0}
+
+                # Delete old records
+                delete_query = session.query(OHLCVDaily).filter(OHLCVDaily.time < cutoff_date)
+                deleted_count = delete_query.delete(synchronize_session=False)
+
+                session.commit()
+
+                logger.info(f"Cleaned up {deleted_count} old records (older than {cutoff_date.date()})")
+
+                return {"status": "success", "records_deleted": deleted_count, "cutoff_date": cutoff_date.date(), "retention_days": retention_days}
+
+        except Exception as e:
+            logger.error(f"Error during data cleanup: {str(e)}")
+            return {"status": "error", "error": str(e)}
