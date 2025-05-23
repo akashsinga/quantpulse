@@ -1,0 +1,61 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: timescale/timescaledb:latest-pg15
+    container_name: quantpulse-postgres
+    environment:
+      POSTGRES_DB: quantpulse
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  # Redis for Celery
+  redis:
+    image: redis:7-alpine
+    container_name: quantpulse-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes
+
+  # Celery Worker for background tasks
+  celery-worker:
+    build: .
+    container_name: quantpulse-celery-worker
+    environment:
+      - DATABASE_URL=postgresql+psycopg2://postgres:password@postgres:5432/quantpulse
+      - REDIS_URL=redis://redis:6379/0
+    depends_on:
+      - postgres
+      - redis
+    volumes:
+      - ./backend:/app
+      - ./.env:/app/.env
+    command: celery -A app.core.celery_app:celery_app worker --loglevel=info --concurrency=2
+
+  # Your FastAPI Application
+  api:
+    build: .
+    container_name: quantpulse-api
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=postgresql+psycopg2://postgres:password@postgres:5432/quantpulse
+      - REDIS_URL=redis://redis:6379/0
+    depends_on:
+      - postgres
+      - redis
+    volumes:
+      - ./backend:/app
+      - ./.env:/app/.env
+    command: uvicorn app.api.main:app --host 0.0.0.0 --port 8000 --reload --reload-dir /app
+
+volumes:
+  postgres_data:
+  redis_data:
