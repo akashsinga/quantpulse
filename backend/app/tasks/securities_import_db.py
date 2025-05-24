@@ -4,10 +4,12 @@ import os
 import sys
 
 import uuid
+import pandas as pd
 from datetime import datetime, date
-from typing import Dict, Optional, Tuple
+from typing import Dict, Optional, Tuple, Set
 from sqlalchemy.orm import Session
-from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.exc import SQLAlchemyError, IntegrityError
+from sqlalchemy import and_
 
 from app.db.models.security import Security
 from app.db.models.exchange import Exchange
@@ -39,7 +41,7 @@ def ensure_nse_exchange(db: Session) -> Exchange:
 
 def process_single_security(db: Session, row: Dict, nse_exchange: Exchange) -> Tuple[str, Optional[Security]]:
     """
-    Process a single security record
+    Process a single security record with proper error handling
     
     Returns:
         (status, security_object) where status is 'created', 'updated', 'skipped', or 'error'
@@ -65,29 +67,14 @@ def process_single_security(db: Session, row: Dict, nse_exchange: Exchange) -> T
             existing.external_id = external_id  # Ensure external_id is up to date
             existing.is_active = True
             existing.updated_at = datetime.now()
-
             return 'updated', existing
         else:
-            # Double-check to avoid race conditions
-            race_check = db.query(Security).filter(Security.symbol == symbol, Security.exchange_id == nse_exchange.id).first()
-
-            if race_check:
-                # Another process created it, update instead
-                race_check.name = name
-                race_check.security_type = security_type
-                race_check.external_id = external_id
-                race_check.is_active = True
-                race_check.updated_at = datetime.now()
-                return 'updated', race_check
-
             # Create new security
             new_security = Security(id=uuid.uuid4(), symbol=symbol, name=name, exchange_id=nse_exchange.id, security_type=security_type, segment="EQUITY", external_id=external_id, is_active=True)
             db.add(new_security)
-
             return 'created', new_security
 
     except SQLAlchemyError as e:
-        db.rollback()
         logger.error(f"Database error processing security {row.get('SEM_TRADING_SYMBOL', 'unknown')}: {e}")
         return 'error', None
     except Exception as e:
@@ -95,205 +82,78 @@ def process_single_security(db: Session, row: Dict, nse_exchange: Exchange) -> T
         return 'error', None
 
 
-def save_securities_batch(db: Session, securities_df, nse_exchange: Exchange, batch_size: int = 100) -> Dict:
+def process_all_securities(db: Session, securities_df, futures_df, nse_exchange: Exchange) -> Dict:
     """
-    Save securities to database in batches
+    Process all securities (regular + derivative securities from futures) with proper error handling
     """
     stats = {'created': 0, 'updated': 0, 'skipped': 0, 'errors': 0}
+    batch_size = 100
 
-    logger.info(f"Saving {len(securities_df)} securities in batches of {batch_size}")
-
-    # Use enumerate instead of iterrows
-    for counter, (index, row) in enumerate(securities_df.iterrows()):
+    # Process regular securities first
+    logger.info(f"Processing {len(securities_df)} regular securities")
+    for processed_count, (index, row) in enumerate(securities_df.iterrows(), 1):
         try:
             status, security = process_single_security(db, row, nse_exchange)
             stats[status] += 1
 
-            # Commit every batch_size records - use counter, not index
-            if (counter + 1) % batch_size == 0:
-                db.commit()
-                logger.info(f"Processed {counter + 1}/{len(securities_df)} securities")
+            # Commit every batch_size records
+            if processed_count % batch_size == 0:
+                try:
+                    db.commit()
+                    logger.info(f"Committed batch: {processed_count}/{len(securities_df)} regular securities")
+                except SQLAlchemyError as e:
+                    logger.error(f"Batch commit failed for regular securities: {e}")
+                    db.rollback()
+                    stats['errors'] += batch_size  # Count batch as errors
 
         except Exception as e:
             stats['errors'] += 1
-            logger.error(f"Error in securities batch processing: {e}")
-            continue
+            logger.error(f"Error processing regular security: {e}")
+            try:
+                db.rollback()
+            except:
+                pass
+
+    # Process futures AS securities (create derivative security records)
+    logger.info(f"Processing {len(futures_df)} futures as securities")
+    for processed_count, (index, row) in enumerate(futures_df.iterrows(), 1):
+        try:
+            status, security = process_single_security(db, row, nse_exchange)
+            stats[status] += 1
+
+            # Commit every batch_size records
+            if processed_count % batch_size == 0:
+                try:
+                    db.commit()
+                    logger.info(f"Committed batch: {processed_count}/{len(futures_df)} futures as securities")
+                except SQLAlchemyError as e:
+                    logger.error(f"Batch commit failed for futures as securities: {e}")
+                    db.rollback()
+                    stats['errors'] += batch_size
+
+        except Exception as e:
+            stats['errors'] += 1
+            logger.error(f"Error processing future as security: {e}")
+            try:
+                db.rollback()
+            except:
+                pass
 
     # Final commit
     try:
         db.commit()
-        logger.info(f"Securities batch processing completed: {stats}")
-        db.expire_all()
+        logger.info(f"All securities processing completed: {stats}")
     except SQLAlchemyError as e:
+        logger.error(f"Final commit failed for all securities: {e}")
         db.rollback()
-        logger.error(f"Final commit failed for securities: {e}")
         raise
 
     return stats
 
 
-def process_single_future(db: Session, row: Dict, securities_cache: Dict[str, Security]) -> Tuple[str, Optional[Future]]:
-    """
-    Process a single future record
-    """
-    try:
-        external_id = int(row["SEM_SMST_SECURITY_ID"])
-        symbol = row["SEM_TRADING_SYMBOL"]
-
-        # Debug: Log the future we're processing
-        logger.debug(f"Processing future: {symbol} (external_id: {external_id})")
-
-        # IMPORTANT: The future itself should already exist as a security with security_type='DERIVATIVE'
-        # We created it in the securities processing step
-        future_security = db.query(Security).filter(Security.external_id == external_id, Security.security_type == "DERIVATIVE").first()
-
-        if not future_security:
-            logger.debug(f"SKIP REASON: No derivative security found for external_id {external_id} (symbol: {symbol})")
-            return 'skipped', None
-
-        # Extract underlying symbol and find underlying security
-        underlying_symbol = extract_underlying_symbol(symbol)
-        logger.debug(f"Looking for underlying symbol: '{underlying_symbol}' for future: {symbol}")
-
-        underlying = securities_cache.get(underlying_symbol)
-
-        if not underlying:
-            # Try database lookup if not in cache with different variations
-            underlying = db.query(Security).filter(Security.symbol == underlying_symbol, Security.security_type.in_(["STOCK", "INDEX"])).first()
-
-            # Try variations for indices
-            if not underlying:
-                # Try with "50" suffix for NIFTY
-                if underlying_symbol in ["NIFTY", "BANKNIFTY", "FINNIFTY", "MIDCPNIFTY"]:
-                    variations = [f"{underlying_symbol} 50", f"{underlying_symbol}50", underlying_symbol.replace("NIFTY", "NIFTY 50")]
-                    for variation in variations:
-                        underlying = securities_cache.get(variation)
-                        if underlying:
-                            break
-
-                    if not underlying:
-                        # Try database lookup for variations
-                        for variation in variations:
-                            underlying = db.query(Security).filter(Security.symbol == variation, Security.security_type == "INDEX").first()
-                            if underlying:
-                                break
-
-        if not underlying:
-            logger.debug(f"SKIP REASON: No underlying found for symbol: '{underlying_symbol}' (from future: {symbol})")
-            # Log available similar symbols for debugging
-            similar_symbols = [k for k in securities_cache.keys() if underlying_symbol[:4] in k][:5]
-            logger.debug(f"Similar available symbols: {similar_symbols}")
-            return 'skipped', None
-
-        # Parse expiry date
-        expiry_date = parse_expiry_date(row["SEM_EXPIRY_DATE"])
-        if not expiry_date:
-            logger.debug(f"SKIP REASON: Invalid expiry date for future: {symbol}")
-            return 'error', None
-
-        # Get contract specifications
-        contract_month = get_contract_month(expiry_date)
-        lot_size = safe_int_conversion(row.get("SEM_LOT_UNITS"), 1)
-        is_index = is_index_future(row.get("SEM_INSTRUMENT_NAME", ""))
-
-        # Check if future already exists
-        existing = db.query(Future).filter(Future.security_id == future_security.id).first()
-
-        if existing:
-            # Update existing future
-            existing.underlying_id = underlying.id
-            existing.expiration_date = expiry_date
-            existing.lot_size = lot_size
-            existing.contract_month = contract_month
-            existing.settlement_type = "CASH" if is_index else "PHYSICAL"
-            existing.is_active = True
-            logger.debug(f"Updated future: {symbol}")
-            return 'updated', existing
-        else:
-            # Create new future
-            new_future = Future(security_id=future_security.id, underlying_id=underlying.id, expiration_date=expiry_date, contract_size=1.0, lot_size=lot_size, settlement_type="CASH" if is_index else "PHYSICAL", contract_month=contract_month, is_active=True)
-            db.add(new_future)
-            logger.debug(f"Created future: {symbol}")
-            return 'created', new_future
-
-    except Exception as e:
-        logger.error(f"Error processing future {row.get('SEM_TRADING_SYMBOL', 'unknown')}: {e}")
-        return 'error', None
-
-
-def process_all_securities(db: Session, securities_df, futures_df, nse_exchange: Exchange) -> Dict:
-    """
-    Process all securities (regular + derivative securities from futures) in one pass
-    """
-    stats = {'created': 0, 'updated': 0, 'skipped': 0, 'errors': 0}
-
-    # Process regular securities first
-    logger.info(f"Processing {len(securities_df)} regular securities")
-    for index, row in securities_df.iterrows():
-        try:
-            status, security = process_single_security(db, row, nse_exchange)
-            stats[status] += 1
-
-            if (index + 1) % 100 == 0:
-                db.commit()
-                logger.info(f"Processed {index + 1}/{len(securities_df)} regular securities")
-        except Exception as e:
-            stats['errors'] += 1
-            logger.error(f"Error processing regular security: {e}")
-
-    # Now process futures AS securities (create derivative security records)
-    logger.info(f"Processing {len(futures_df)} futures as securities")
-    for index, row in futures_df.iterrows():
-        try:
-            status, security = process_single_security(db, row, nse_exchange)
-            stats[status] += 1
-
-            if (index + 1) % 100 == 0:
-                db.commit()
-                logger.info(f"Processed {index + 1}/{len(futures_df)} futures as securities")
-        except Exception as e:
-            stats['errors'] += 1
-            logger.error(f"Error processing future as security: {e}")
-
-    # Final commit
-    db.commit()
-    logger.info(f"All securities processing completed: {stats}")
-    return stats
-
-
-def process_futures_relationships(db: Session, futures_df) -> Dict:
-    """
-    Process futures relationships (create Future records that link to existing securities)
-    """
-    stats = {'created': 0, 'updated': 0, 'skipped': 0, 'errors': 0}
-
-    logger.info(f"Creating futures relationships for {len(futures_df)} futures")
-
-    # Build securities cache for faster lookups
-    securities_cache = build_securities_cache(db)
-
-    for index, row in futures_df.iterrows():
-        try:
-            status, future = process_single_future_relationship(db, row, securities_cache)
-            stats[status] += 1
-
-            if (index + 1) % 50 == 0:
-                db.commit()
-                logger.info(f"Processed {index + 1}/{len(futures_df)} futures relationships")
-
-        except Exception as e:
-            stats['errors'] += 1
-            logger.error(f"Error processing future relationship: {e}")
-
-    # Final commit
-    db.commit()
-    logger.info(f"Futures relationships processing completed: {stats}")
-    return stats
-
-
 def process_single_future_relationship(db: Session, row: Dict, securities_cache: Dict[str, Security]) -> Tuple[str, Optional[Future]]:
     """
-    Create a Future relationship record (assuming the derivative security already exists)
+    Create a Future relationship record with proper duplicate checking
     """
     try:
         external_id = int(row["SEM_SMST_SECURITY_ID"])
@@ -337,27 +197,139 @@ def process_single_future_relationship(db: Session, row: Dict, securities_cache:
         lot_size = safe_int_conversion(row.get("SEM_LOT_UNITS"), 1)
         is_index = is_index_future(row.get("SEM_INSTRUMENT_NAME", ""))
 
-        # Check if future relationship already exists
-        existing = db.query(Future).filter(Future.security_id == derivative_security.id).first()
+        # FIXED: Check for existing future using the unique constraint fields
+        existing = db.query(Future).filter(and_(Future.underlying_id == underlying.id, Future.contract_month == contract_month, Future.expiration_date == expiry_date)).first()
 
         if existing:
-            # Update existing future
-            existing.underlying_id = underlying.id
-            existing.expiration_date = expiry_date
-            existing.lot_size = lot_size
-            existing.contract_month = contract_month
-            existing.settlement_type = "CASH" if is_index else "PHYSICAL"
-            existing.is_active = True
-            return 'updated', existing
+            # Update existing future - but only if it's the same security or if we should replace it
+            if existing.security_id == derivative_security.id:
+                # Same security, just update
+                existing.lot_size = lot_size
+                existing.settlement_type = "CASH" if is_index else "PHYSICAL"
+                existing.is_active = True
+                return 'updated', existing
+            else:
+                # Different security but same contract details - this is a data issue
+                # Log warning and skip to avoid constraint violation
+                logger.warning(f"Duplicate future contract found: {symbol} vs existing security_id: {existing.security_id}")
+                return 'skipped', None
         else:
             # Create new future relationship
             new_future = Future(security_id=derivative_security.id, underlying_id=underlying.id, expiration_date=expiry_date, contract_size=1.0, lot_size=lot_size, settlement_type="CASH" if is_index else "PHYSICAL", contract_month=contract_month, is_active=True)
             db.add(new_future)
             return 'created', new_future
 
+    except IntegrityError as e:
+        logger.warning(f"Integrity constraint violation for future {row.get('SEM_TRADING_SYMBOL', 'unknown')}: {e}")
+        return 'skipped', None
     except Exception as e:
         logger.error(f"Error processing future relationship {row.get('SEM_TRADING_SYMBOL', 'unknown')}: {e}")
         return 'error', None
+
+
+def process_futures_relationships(db: Session, futures_df) -> Dict:
+    """
+    Process futures relationships with proper error handling and deduplication
+    """
+    stats = {'created': 0, 'updated': 0, 'skipped': 0, 'errors': 0}
+
+    logger.info(f"Starting futures relationships processing for {len(futures_df)} futures")
+
+    # Build securities cache for faster lookups
+    securities_cache = build_securities_cache(db)
+
+    # Deduplicate futures based on unique constraint before processing
+    logger.info("Deduplicating futures data...")
+    deduplicated_futures = deduplicate_futures_data(futures_df)
+
+    original_count = len(futures_df)
+    deduplicated_count = len(deduplicated_futures)
+    duplicates_removed = original_count - deduplicated_count
+
+    logger.info(f"Deduplication complete: {deduplicated_count} unique futures to process (removed {duplicates_removed} duplicates)")
+
+    # Process each future with batch commits for better performance
+    batch_size = 50
+
+    for processed_count, (index, row) in enumerate(deduplicated_futures.iterrows(), 1):
+        try:
+            status, future = process_single_future_relationship(db, row, securities_cache)
+            stats[status] += 1
+
+            # Commit in batches but handle individual failures
+            if processed_count % batch_size == 0:
+                try:
+                    db.commit()
+                    logger.info(f"Progress: {processed_count}/{deduplicated_count} futures processed ({(processed_count/deduplicated_count)*100:.1f}%)")
+                except IntegrityError as e:
+                    logger.warning(f"Batch constraint violation, rolling back batch of {batch_size} records")
+                    db.rollback()
+                    stats['errors'] += batch_size
+                except SQLAlchemyError as e:
+                    logger.error(f"Database error in batch: {e}")
+                    db.rollback()
+                    stats['errors'] += batch_size
+
+        except Exception as e:
+            stats['errors'] += 1
+            logger.error(f"Error processing future relationship: {e}")
+            try:
+                db.rollback()
+            except:
+                pass
+
+    # Final commit for remaining records
+    try:
+        db.commit()
+        logger.info(f"Futures relationships processing completed: {stats}")
+    except SQLAlchemyError as e:
+        logger.error(f"Final commit failed: {e}")
+        db.rollback()
+        raise
+
+    return stats
+
+
+def deduplicate_futures_data(futures_df) -> 'pd.DataFrame':
+    """
+    Deduplicate futures data based on the unique constraint fields
+    """
+    logger.info(f"Starting deduplication with {len(futures_df)} futures")
+
+    try:
+        # Create dedup columns directly (safer than apply)
+        work_df = futures_df.copy()
+        logger.info(f"After copy: {len(work_df)} futures")
+
+        # Add columns for deduplication key components
+        work_df['underlying_symbol'] = work_df['SEM_TRADING_SYMBOL'].apply(extract_underlying_symbol)
+        logger.info(f"After underlying extraction: {len(work_df)} futures")
+
+        work_df['parsed_expiry'] = work_df['SEM_EXPIRY_DATE'].apply(parse_expiry_date)
+        logger.info(f"After expiry parsing: {len(work_df)} futures")
+
+        work_df['contract_month'] = work_df['parsed_expiry'].apply(lambda x: get_contract_month(x) if x else None)
+        logger.info(f"After contract month: {len(work_df)} futures")
+
+        # Remove rows with invalid data
+        valid_df = work_df.dropna(subset=['underlying_symbol', 'parsed_expiry', 'contract_month'])
+        logger.info(f"After removing invalid rows: {len(valid_df)} futures")
+
+        # Deduplicate based on the actual unique constraint fields
+        deduplicated = valid_df.drop_duplicates(subset=['underlying_symbol', 'contract_month', 'parsed_expiry'], keep='first')
+        logger.info(f"After deduplication: {len(deduplicated)} futures")
+
+        # Clean up temporary columns and return original structure
+        columns_to_keep = [col for col in futures_df.columns]
+        final_df = deduplicated[columns_to_keep].copy()
+
+        logger.info(f"Final deduplicated dataset: {len(final_df)} futures")
+        return final_df
+
+    except Exception as e:
+        logger.error(f"Error in deduplication: {e}")
+        logger.error(f"Returning original dataset of {len(futures_df)} futures")
+        return futures_df
 
 
 def build_securities_cache(db: Session) -> Dict[str, Security]:
@@ -393,69 +365,7 @@ def build_securities_cache(db: Session) -> Dict[str, Security]:
                     cache[base_symbol] = sec
 
     logger.info(f"Built cache with {len(cache)} entries (including variations)")
-
-    # Log some index entries for debugging
-    index_entries = {k: v.symbol for k, v in cache.items() if v.security_type == "INDEX"}
-    logger.info(f"Index cache entries: {index_entries}")
-
     return cache
-
-
-def save_futures_batch(db: Session, futures_df, batch_size: int = 50) -> Dict:
-    """
-    Save futures to database in batches
-    """
-    stats = {'created': 0, 'updated': 0, 'skipped': 0, 'errors': 0}
-
-    logger.info(f"Saving {len(futures_df)} futures in batches of {batch_size}")
-
-    # Build securities cache
-    import time
-    time.sleep(2)
-    db.commit()
-    db.expire_all()
-
-    securities_cache = build_securities_cache(db)
-    logger.info(f"Built securities cache with {len(securities_cache)} securities for futures processing")
-
-    # Log sample future data for debugging
-    if len(futures_df) > 0:
-        sample_row = futures_df.iloc[0]
-        logger.info(f"Sample future data: Symbol={sample_row.get('SEM_TRADING_SYMBOL')}, ExternalID={sample_row.get('SEM_SMST_SECURITY_ID')}")
-
-    # Use enumerate instead of iterrows to get proper counter
-    for counter, (index, row) in enumerate(futures_df.iterrows()):
-        try:
-            status, future = process_single_future(db, row, securities_cache)
-            stats[status] += 1
-
-            if status == 'skipped':
-                # Log first few skipped items for debugging
-                if stats['skipped'] <= 5:
-                    underlying_symbol = extract_underlying_symbol(row['SEM_TRADING_SYMBOL'])
-                    external_id = row.get('SEM_SMST_SECURITY_ID')
-                    logger.debug(f"Future {row['SEM_TRADING_SYMBOL']} skipped - underlying: {underlying_symbol}, external_id: {external_id}")
-
-            # Commit every batch_size records - use counter, not index
-            if (counter + 1) % batch_size == 0:
-                db.commit()
-                logger.info(f"Processed {counter + 1}/{len(futures_df)} futures")
-
-        except Exception as e:
-            stats['errors'] += 1
-            logger.error(f"Error in futures batch processing: {e}")
-            continue
-
-    # Final commit
-    try:
-        db.commit()
-        logger.info(f"Futures batch processing completed: {stats}")
-    except SQLAlchemyError as e:
-        db.rollback()
-        logger.error(f"Final commit failed for futures: {e}")
-        raise
-
-    return stats
 
 
 def mark_expired_futures(db: Session) -> int:
@@ -486,3 +396,15 @@ def mark_expired_futures(db: Session) -> int:
         raise
 
     return marked_count
+
+
+# Legacy functions for backward compatibility (but fixed)
+def save_securities_batch(db: Session, securities_df, nse_exchange: Exchange, batch_size: int = 100) -> Dict:
+    """Legacy function - use process_all_securities instead"""
+    import pandas as pd
+    return process_all_securities(db, securities_df, pd.DataFrame(), nse_exchange)
+
+
+def save_futures_batch(db: Session, futures_df, batch_size: int = 50) -> Dict:
+    """Legacy function - use process_futures_relationships instead"""
+    return process_futures_relationships(db, futures_df)

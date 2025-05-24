@@ -12,7 +12,7 @@ from typing import Dict
 from app.core.celery_app import celery_app
 from app.db.session import SessionLocal
 from .securities_import_helpers import (filter_securities_and_futures, validate_security_data, validate_futures_data)
-from .securities_import_db import (ensure_nse_exchange, save_securities_batch, save_futures_batch, mark_expired_futures, process_all_securities, process_futures_relationships)
+from .securities_import_db import (ensure_nse_exchange, process_all_securities, process_futures_relationships, mark_expired_futures)
 from app.utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -77,12 +77,8 @@ def import_securities_task(self) -> Dict:
             all_securities_stats = process_all_securities(db, securities_df, futures_df, nse_exchange)
             logger.info(f"All securities processed: {all_securities_stats}")
 
-            # IMPORTANT: Commit all securities before processing futures
-            db.commit()
-            logger.info("All securities committed, starting futures processing...")
-
-            # Step 7: Process futures (now that all securities exist)
-            self.update_state(state='PROGRESS', meta={'status': f'Processing {len(futures_df)} futures to database...', 'progress': 70, 'securities_stats': all_securities_stats})
+            # Step 7: Process futures relationships (now that all securities exist)
+            self.update_state(state='PROGRESS', meta={'status': f'Processing {len(futures_df)} futures relationships...', 'progress': 70, 'securities_stats': all_securities_stats})
 
             futures_stats = process_futures_relationships(db, futures_df)
             logger.info(f"Futures processed: {futures_stats}")
@@ -91,6 +87,13 @@ def import_securities_task(self) -> Dict:
             self.update_state(state='PROGRESS', meta={'status': 'Marking expired futures as inactive...', 'progress': 90})
             expired_count = mark_expired_futures(db)
 
+            # Final commit
+            db.commit()
+
+        except Exception as e:
+            logger.error(f"Database operation failed: {e}")
+            db.rollback()
+            raise
         finally:
             db.close()
 
