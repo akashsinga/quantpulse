@@ -16,6 +16,9 @@ from app.db.models.ohlcv_daily import OHLCVDaily
 from app.db.models.ohlcv_weekly import OHLCVWeekly
 from app.db.models.technical_indicators import TechnicalIndicator
 
+# Import OHLCV progress tracking - NEW
+from app.db.models.ohlcv_progress import OHLCVProgress
+
 # Import strategy-related models
 from app.db.models.strategy import Strategy
 from app.db.models.strategy_security import StrategySecurity
@@ -44,6 +47,7 @@ __all__ = [
     'OHLCVDaily',
     'OHLCVWeekly',
     'TechnicalIndicator',
+    'OHLCVProgress',  # NEW
     'Strategy',
     'StrategySecurity',
     'Signal',

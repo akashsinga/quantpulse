@@ -1,4 +1,4 @@
-# backend/app/config.py
+# backend/app/config.py - UPDATED with OHLCV settings
 
 from pydantic_settings import BaseSettings
 from typing import List, Optional
@@ -43,15 +43,23 @@ class Settings(BaseSettings):
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24  # 24 hours
 
+    # DHAN API Configuration - NEW
+    DHAN_ACCESS_TOKEN: str = os.getenv("DHAN_ACCESS_TOKEN", "")
+    DHAN_CLIENT_ID: str = os.getenv("DHAN_CLIENT_ID", "")
+    DHAN_CHARTS_HISTORICAL_URL: str = os.getenv("DHAN_CHARTS_HISTORICAL_URL", "https://api.dhan.co/v2/charts/historical")
+    DHAN_TODAY_EOD_URL: str = os.getenv("DHAN_TODAY_EOD_URL", "https://api.dhan.co/v2/marketfeed/quote")
+
     # OHLCV Fetcher Configuration - Enhanced with Environment Variables
     OHLCV_WORKERS: int = int(os.getenv("OHLCV_WORKERS", "16"))
     OHLCV_BATCH_SIZE: int = int(os.getenv("OHLCV_BATCH_SIZE", "200"))
     OHLCV_MAX_CONCURRENT: int = int(os.getenv("OHLCV_MAX_CONCURRENT", "50"))
-    OHLCV_REQUEST_DELAY: float = float(os.getenv("OHLCV_REQUEST_DELAY", "0.01"))
+    OHLCV_REQUEST_DELAY: float = float(os.getenv("OHLCV_REQUEST_DELAY", "0.05"))  # 20 req/sec = 0.05s delay
     OHLCV_MAX_RETRIES: int = int(os.getenv("OHLCV_MAX_RETRIES", "3"))
     OHLCV_BULK_INSERT_SIZE: int = int(os.getenv("OHLCV_BULK_INSERT_SIZE", "1000"))
     OHLCV_CACHE_SIZE: int = int(os.getenv("OHLCV_CACHE_SIZE", "10000"))
     OHLCV_MEMORY_CHECK_INTERVAL: int = int(os.getenv("OHLCV_MEMORY_CHECK_INTERVAL", "100"))
+    OHLCV_BATCH_SIZE_TODAY: int = int(os.getenv("OHLCV_BATCH_SIZE_TODAY", "200"))  # Securities per today request
+    OHLCV_HISTORICAL_WORKERS: int = int(os.getenv("OHLCV_HISTORICAL_WORKERS", "10"))  # Concurrent historical fetches
 
     # Rate limiting - Enhanced
     RATE_LIMIT_SLEEP: float = float(os.getenv("RATE_LIMIT_SLEEP", "0.05"))
@@ -88,17 +96,15 @@ class Settings(BaseSettings):
         },
     }
 
-    # API Settings
+    # API Settings (Legacy - keeping for backward compatibility)
     DHAN_SCRIP_MASTER_URL: str = os.getenv("DHAN_SCRIP_MASTER_URL", "https://images.dhan.co/api-data/api-scrip-master.csv")
-    DHAN_CHARTS_HISTORICAL_URL: str = os.getenv("DHAN_CHARTS_HISTORICAL_URL", "https://api.dhan.co/v2/charts/historical")
-    DHAN_TODAY_EOD_URL: str = os.getenv("DHAN_TODAY_EOD_URL", "https://api.dhan.co/v2/marketfeed/quote")
     DHAN_API_HEADERS: str = os.getenv("DHAN_API_HEADERS", '{"Content-Type": "application/json", "Authorization": "Bearer YOUR_TOKEN"}')
 
     # Default Dates
     FROM_DATE: str = os.getenv("FROM_DATE", "2000-01-01")  # Default start date for historical data
     TO_DATE: Optional[str] = os.getenv("TO_DATE")  # Default end date (None means today)
 
-    # Redis Configuration (for future caching)
+    # Redis Configuration (for Celery and caching)
     REDIS_URL: str = os.getenv("REDIS_URL", "redis://localhost:6379/0")
     REDIS_MAX_CONNECTIONS: int = int(os.getenv("REDIS_MAX_CONNECTIONS", "50"))
 
@@ -106,6 +112,10 @@ class Settings(BaseSettings):
     HEALTH_CHECK_TIMEOUT: int = int(os.getenv("HEALTH_CHECK_TIMEOUT", "5"))
     ENABLE_METRICS: bool = os.getenv("ENABLE_METRICS", "True").lower() == "true"
     METRICS_PORT: int = int(os.getenv("METRICS_PORT", "9090"))
+
+    # Weekly Data Generation Settings - NEW
+    WEEKLY_AGGREGATION_WEEKS_BACK: int = int(os.getenv("WEEKLY_AGGREGATION_WEEKS_BACK", "4"))
+    WEEKLY_DATA_RETENTION_DAYS: int = int(os.getenv("WEEKLY_DATA_RETENTION_DAYS", "1825"))  # 5 years
 
     class Config:
         env_file = ".env"

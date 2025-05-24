@@ -12,6 +12,7 @@ from app.api.middlewares.request import RequestMiddleware
 from app.config import settings
 from app.api.v1 import auth
 from app.api.v1 import securities
+from app.api.v1 import ohlcv
 
 import os
 import sys
@@ -46,6 +47,7 @@ app.add_middleware(RequestMiddleware)
 # Routers
 app.include_router(auth.router, prefix=f"{settings.API_V1_PREFIX}/auth", tags=["auth"])
 app.include_router(securities.router, prefix=f"{settings.API_V1_PREFIX}/securities", tags=["securities"])
+app.include_router(ohlcv.router, prefix=f"{settings.API_V1_PREFIX}/ohlcv", tags=["ohlcv"])
 
 
 @app.get("/", tags=["root"])
