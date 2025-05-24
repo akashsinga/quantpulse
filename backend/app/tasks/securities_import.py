@@ -120,6 +120,12 @@ def import_securities_task(self) -> Dict:
                                                      nse_exchange)
             logger.info(f"Securities saved: {securities_stats}")
 
+            # IMPORTANT: Ensure securities are fully committed before futures
+            # Small delay to ensure database consistency
+            import time
+            time.sleep(1)
+            logger.info("Securities committed, starting futures processing...")
+
             # Update progress after securities
             self.update_state(
                 state='PROGRESS',

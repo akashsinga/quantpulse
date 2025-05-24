@@ -154,10 +154,14 @@ def save_securities_batch(db: Session,
             logger.error(f"Error in securities batch processing: {e}")
             continue
 
-    # Final commit
+    # IMPORTANT: Final commit to ensure all securities are saved
     try:
         db.commit()
         logger.info(f"Securities batch processing completed: {stats}")
+
+        # FORCE REFRESH: Clear any cached data to ensure fresh reads
+        db.expire_all()
+
     except SQLAlchemyError as e:
         db.rollback()
         logger.error(f"Final commit failed for securities: {e}")
@@ -279,13 +283,26 @@ def save_futures_batch(db: Session, futures_df, batch_size: int = 50) -> Dict:
 
     logger.info(f"Saving {len(futures_df)} futures in batches of {batch_size}")
 
-    # Build securities cache for faster lookups
+    # IMPORTANT: Build securities cache AFTER securities are committed
+    # This ensures we can find the underlying securities
     securities_cache = build_securities_cache(db)
+    logger.info(
+        f"Built securities cache with {len(securities_cache)} securities for futures processing"
+    )
 
     for index, row in futures_df.iterrows():
         try:
             status, future = process_single_future(db, row, securities_cache)
             stats[status] += 1
+
+            if status == 'skipped':
+                # Log why it was skipped for debugging
+                underlying_symbol = extract_underlying_symbol(
+                    row['SEM_TRADING_SYMBOL'])
+                if underlying_symbol not in securities_cache:
+                    logger.debug(
+                        f"Future {row['SEM_TRADING_SYMBOL']} skipped - underlying {underlying_symbol} not found"
+                    )
 
             # Commit every batch_size records
             if (index + 1) % batch_size == 0:
