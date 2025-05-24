@@ -6,6 +6,7 @@ from starlette.requests import Request
 
 
 class RequestMiddleware(BaseHTTPMiddleware):
+
     async def dispatch(self, request, call_next):
         request.state.request_id = str(uuid.uuid4())
         response = await call_next(request)

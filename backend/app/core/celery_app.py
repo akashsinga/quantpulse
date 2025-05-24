@@ -4,9 +4,7 @@ from celery import Celery
 from app.config import settings
 
 # Create Celery instance
-celery_app = Celery("quantpulse",
-                    broker=settings.REDIS_URL,
-                    backend=settings.REDIS_URL)
+celery_app = Celery("quantpulse", broker=settings.REDIS_URL, backend=settings.REDIS_URL)
 
 # Basic Celery Configuration
 celery_app.conf.update(

@@ -17,7 +17,4 @@ from .securities_import import import_securities_task
 from . import securities_import_helpers
 from . import securities_import_db
 
-__all__ = [
-    'import_securities_task', 'securities_import_helpers',
-    'securities_import_db'
-]
+__all__ = ['import_securities_task', 'securities_import_helpers', 'securities_import_db']

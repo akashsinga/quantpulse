@@ -36,40 +36,22 @@ async def lifespan(app: FastAPI):
     logger.info("Shutting down worker pools")
 
 
-app = FastAPI(title=settings.APP_NAME,
-              description="Predictive Market Analytics API",
-              version="1.0.0",
-              lifespan=lifespan)
+app = FastAPI(title=settings.APP_NAME, description="Predictive Market Analytics API", version="1.0.0", lifespan=lifespan)
 
 # Adding Middlewares
-app.add_middleware(CORSMiddleware,
-                   allow_origins=settings.CORS_ORIGINS,
-                   allow_credentials=True,
-                   allow_methods=["*"],
-                   allow_headers=["*"],
-                   expose_headers=["Content-Type", "Authorization"],
-                   max_age=86400)
+app.add_middleware(CORSMiddleware, allow_origins=settings.CORS_ORIGINS, allow_credentials=True, allow_methods=["*"], allow_headers=["*"], expose_headers=["Content-Type", "Authorization"], max_age=86400)
 app.add_middleware(LoggingMiddleware)
 app.add_middleware(RequestMiddleware)
 
 # Routers
-app.include_router(auth.router,
-                   prefix=f"{settings.API_V1_PREFIX}/auth",
-                   tags=["auth"])
-app.include_router(securities.router,
-                   prefix=f"{settings.API_V1_PREFIX}/securities",
-                   tags=["securities"])
+app.include_router(auth.router, prefix=f"{settings.API_V1_PREFIX}/auth", tags=["auth"])
+app.include_router(securities.router, prefix=f"{settings.API_V1_PREFIX}/securities", tags=["securities"])
 
 
 @app.get("/", tags=["root"])
 async def root():
     """Root endpoint to checkAPI status"""
-    return {
-        "status": "online",
-        "api_version": "1.0.0",
-        "system_name": settings.APP_NAME,
-        "documentation": "/docs"
-    }
+    return {"status": "online", "api_version": "1.0.0", "system_name": settings.APP_NAME, "documentation": "/docs"}
 
 
 if __name__ == "__main__":

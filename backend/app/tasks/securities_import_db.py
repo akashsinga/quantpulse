@@ -12,11 +12,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from app.db.models.security import Security
 from app.db.models.exchange import Exchange
 from app.db.models.derivatives import Future
-from .securities_import_helpers import (map_security_type, get_security_name,
-                                        safe_int_conversion,
-                                        extract_underlying_symbol,
-                                        parse_expiry_date, get_contract_month,
-                                        is_index_future)
+from .securities_import_helpers import (map_security_type, get_security_name, safe_int_conversion, extract_underlying_symbol, parse_expiry_date, get_contract_month, is_index_future)
 from app.utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -33,13 +29,7 @@ def ensure_nse_exchange(db: Session) -> Exchange:
 
     if not nse_exchange:
         # Create NSE exchange with fixed UUID for consistency
-        nse_exchange = Exchange(
-            id=uuid.UUID("984ffe13-dcfb-4362-8291-5f2bee2645ef"),
-            name="National Stock Exchange",
-            code="NSE",
-            country="India",
-            timezone="Asia/Kolkata",
-            is_active=True)
+        nse_exchange = Exchange(id=uuid.UUID("984ffe13-dcfb-4362-8291-5f2bee2645ef"), name="National Stock Exchange", code="NSE", country="India", timezone="Asia/Kolkata", is_active=True)
         db.add(nse_exchange)
         db.commit()
         logger.info("Created NSE exchange")
@@ -47,9 +37,7 @@ def ensure_nse_exchange(db: Session) -> Exchange:
     return nse_exchange
 
 
-def process_single_security(
-        db: Session, row: Dict,
-        nse_exchange: Exchange) -> Tuple[str, Optional[Security]]:
+def process_single_security(db: Session, row: Dict, nse_exchange: Exchange) -> Tuple[str, Optional[Security]]:
     """
     Process a single security record
     
@@ -63,14 +51,11 @@ def process_single_security(
         security_type = map_security_type(row)
 
         # Check if security already exists (prefer external_id lookup)
-        existing = db.query(Security).filter(
-            Security.external_id == external_id).first()
+        existing = db.query(Security).filter(Security.external_id == external_id).first()
 
         # If not found by external_id, check by symbol+exchange
         if not existing:
-            existing = db.query(Security).filter(
-                Security.symbol == symbol,
-                Security.exchange_id == nse_exchange.id).first()
+            existing = db.query(Security).filter(Security.symbol == symbol, Security.exchange_id == nse_exchange.id).first()
 
         if existing:
             # Update existing security
@@ -84,9 +69,7 @@ def process_single_security(
             return 'updated', existing
         else:
             # Double-check to avoid race conditions
-            race_check = db.query(Security).filter(
-                Security.symbol == symbol,
-                Security.exchange_id == nse_exchange.id).first()
+            race_check = db.query(Security).filter(Security.symbol == symbol, Security.exchange_id == nse_exchange.id).first()
 
             if race_check:
                 # Another process created it, update instead
@@ -98,35 +81,21 @@ def process_single_security(
                 return 'updated', race_check
 
             # Create new security
-            new_security = Security(id=uuid.uuid4(),
-                                    symbol=symbol,
-                                    name=name,
-                                    exchange_id=nse_exchange.id,
-                                    security_type=security_type,
-                                    segment="EQUITY",
-                                    external_id=external_id,
-                                    is_active=True)
+            new_security = Security(id=uuid.uuid4(), symbol=symbol, name=name, exchange_id=nse_exchange.id, security_type=security_type, segment="EQUITY", external_id=external_id, is_active=True)
             db.add(new_security)
 
             return 'created', new_security
 
     except SQLAlchemyError as e:
         db.rollback()
-        logger.error(
-            f"Database error processing security {row.get('SEM_TRADING_SYMBOL', 'unknown')}: {e}"
-        )
+        logger.error(f"Database error processing security {row.get('SEM_TRADING_SYMBOL', 'unknown')}: {e}")
         return 'error', None
     except Exception as e:
-        logger.error(
-            f"Error processing security {row.get('SEM_TRADING_SYMBOL', 'unknown')}: {e}"
-        )
+        logger.error(f"Error processing security {row.get('SEM_TRADING_SYMBOL', 'unknown')}: {e}")
         return 'error', None
 
 
-def save_securities_batch(db: Session,
-                          securities_df,
-                          nse_exchange: Exchange,
-                          batch_size: int = 100) -> Dict:
+def save_securities_batch(db: Session, securities_df, nse_exchange: Exchange, batch_size: int = 100) -> Dict:
     """
     Save securities to database in batches
     
@@ -135,8 +104,7 @@ def save_securities_batch(db: Session,
     """
     stats = {'created': 0, 'updated': 0, 'skipped': 0, 'errors': 0}
 
-    logger.info(
-        f"Saving {len(securities_df)} securities in batches of {batch_size}")
+    logger.info(f"Saving {len(securities_df)} securities in batches of {batch_size}")
 
     for index, row in securities_df.iterrows():
         try:
@@ -146,8 +114,7 @@ def save_securities_batch(db: Session,
             # Commit every batch_size records
             if (index + 1) % batch_size == 0:
                 db.commit()
-                logger.info(
-                    f"Processed {index + 1}/{len(securities_df)} securities")
+                logger.info(f"Processed {index + 1}/{len(securities_df)} securities")
 
         except Exception as e:
             stats['errors'] += 1
@@ -170,9 +137,7 @@ def save_securities_batch(db: Session,
     return stats
 
 
-def process_single_future(
-        db: Session, row: Dict,
-        securities_cache: Dict[str, Security]) -> Tuple[str, Optional[Future]]:
+def process_single_future(db: Session, row: Dict, securities_cache: Dict[str, Security]) -> Tuple[str, Optional[Future]]:
     """
     Process a single future record
     
@@ -189,8 +154,7 @@ def process_single_future(
         symbol = row["SEM_TRADING_SYMBOL"]
 
         # Find the security record for this future
-        security = db.query(Security).filter(
-            Security.external_id == external_id).first()
+        security = db.query(Security).filter(Security.external_id == external_id).first()
         if not security:
             return 'skipped', None
 
@@ -200,9 +164,7 @@ def process_single_future(
 
         if not underlying:
             # Try database lookup if not in cache
-            underlying = db.query(Security).filter(
-                Security.symbol == underlying_symbol,
-                Security.security_type.in_(["STOCK", "INDEX"])).first()
+            underlying = db.query(Security).filter(Security.symbol == underlying_symbol, Security.security_type.in_(["STOCK", "INDEX"])).first()
 
         if not underlying:
             return 'skipped', None
@@ -218,8 +180,7 @@ def process_single_future(
         is_index = is_index_future(row.get("SEM_INSTRUMENT_NAME", ""))
 
         # Check if future already exists
-        existing = db.query(Future).filter(
-            Future.security_id == security.id).first()
+        existing = db.query(Future).filter(Future.security_id == security.id).first()
 
         if existing:
             # Update existing future
@@ -247,9 +208,7 @@ def process_single_future(
             return 'created', new_future
 
     except Exception as e:
-        logger.error(
-            f"Error processing future {row.get('SEM_TRADING_SYMBOL', 'unknown')}: {e}"
-        )
+        logger.error(f"Error processing future {row.get('SEM_TRADING_SYMBOL', 'unknown')}: {e}")
         return 'error', None
 
 
@@ -262,9 +221,7 @@ def build_securities_cache(db: Session) -> Dict[str, Security]:
     """
     logger.info("Building securities cache for futures processing")
 
-    securities = db.query(Security).filter(
-        Security.security_type.in_(["STOCK", "INDEX"]),
-        Security.is_active == True).all()
+    securities = db.query(Security).filter(Security.security_type.in_(["STOCK", "INDEX"]), Security.is_active == True).all()
 
     cache = {sec.symbol: sec for sec in securities}
     logger.info(f"Built cache with {len(cache)} securities")
@@ -286,9 +243,7 @@ def save_futures_batch(db: Session, futures_df, batch_size: int = 50) -> Dict:
     # IMPORTANT: Build securities cache AFTER securities are committed
     # This ensures we can find the underlying securities
     securities_cache = build_securities_cache(db)
-    logger.info(
-        f"Built securities cache with {len(securities_cache)} securities for futures processing"
-    )
+    logger.info(f"Built securities cache with {len(securities_cache)} securities for futures processing")
 
     for index, row in futures_df.iterrows():
         try:
@@ -297,12 +252,9 @@ def save_futures_batch(db: Session, futures_df, batch_size: int = 50) -> Dict:
 
             if status == 'skipped':
                 # Log why it was skipped for debugging
-                underlying_symbol = extract_underlying_symbol(
-                    row['SEM_TRADING_SYMBOL'])
+                underlying_symbol = extract_underlying_symbol(row['SEM_TRADING_SYMBOL'])
                 if underlying_symbol not in securities_cache:
-                    logger.debug(
-                        f"Future {row['SEM_TRADING_SYMBOL']} skipped - underlying {underlying_symbol} not found"
-                    )
+                    logger.debug(f"Future {row['SEM_TRADING_SYMBOL']} skipped - underlying {underlying_symbol} not found")
 
             # Commit every batch_size records
             if (index + 1) % batch_size == 0:
@@ -338,8 +290,7 @@ def mark_expired_futures(db: Session) -> int:
 
     try:
         # Get expired but still active futures
-        expired_futures = db.query(Future).filter(
-            Future.expiration_date < today, Future.is_active == True).all()
+        expired_futures = db.query(Future).filter(Future.expiration_date < today, Future.is_active == True).all()
 
         # Mark them as inactive
         for future in expired_futures:

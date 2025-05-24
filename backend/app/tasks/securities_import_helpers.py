@@ -11,16 +11,14 @@ from app.utils.logger import get_logger
 logger = get_logger(__name__)
 
 
-def filter_securities_and_futures(
-        df: pd.DataFrame) -> Tuple[pd.DataFrame, pd.DataFrame]:
+def filter_securities_and_futures(df: pd.DataFrame) -> Tuple[pd.DataFrame, pd.DataFrame]:
     """
     Filter and separate securities and futures from raw Dhan data
     
     Returns:
         Tuple of (securities_df, futures_df)
     """
-    logger.info(
-        f"Filtering {len(df)} total records for NSE securities and futures")
+    logger.info(f"Filtering {len(df)} total records for NSE securities and futures")
 
     # Filter for NSE exchange only
     nse_df = df[df["SEM_EXM_EXCH_ID"] == "NSE"]
@@ -30,22 +28,17 @@ def filter_securities_and_futures(
         return pd.DataFrame(), pd.DataFrame()
 
     # Filter main securities (stocks and indices)
-    stocks_df = nse_df[(nse_df["SEM_SEGMENT"] == "E")
-                       & (nse_df["SEM_EXCH_INSTRUMENT_TYPE"] == "ES")]
+    stocks_df = nse_df[(nse_df["SEM_SEGMENT"] == "E") & (nse_df["SEM_EXCH_INSTRUMENT_TYPE"] == "ES")]
 
-    indices_df = nse_df[(nse_df["SEM_SEGMENT"] == "I")
-                        & (nse_df["SEM_EXCH_INSTRUMENT_TYPE"] == "INDEX")]
+    indices_df = nse_df[(nse_df["SEM_SEGMENT"] == "I") & (nse_df["SEM_EXCH_INSTRUMENT_TYPE"] == "INDEX")]
 
     # Combine stocks and indices
     securities_df = pd.concat([stocks_df, indices_df], ignore_index=True)
 
     # Filter futures
-    futures_df = nse_df[(nse_df["SEM_SEGMENT"] == "D") & (
-        nse_df["SEM_INSTRUMENT_NAME"].isin(["FUTSTK", "FUTIDX"]))]
+    futures_df = nse_df[(nse_df["SEM_SEGMENT"] == "D") & (nse_df["SEM_INSTRUMENT_NAME"].isin(["FUTSTK", "FUTIDX"]))]
 
-    logger.info(
-        f"Filtered {len(stocks_df)} stocks, {len(indices_df)} indices, {len(futures_df)} futures"
-    )
+    logger.info(f"Filtered {len(stocks_df)} stocks, {len(indices_df)} indices, {len(futures_df)} futures")
 
     return securities_df, futures_df
 
@@ -130,8 +123,7 @@ def get_security_name(row: Dict) -> str:
     3. SEM_TRADING_SYMBOL (fallback)
     """
     # For derivatives, prefer custom symbol
-    if row.get("SEM_SEGMENT") == "D" and pd.notna(
-            row.get("SEM_CUSTOM_SYMBOL")):
+    if row.get("SEM_SEGMENT") == "D" and pd.notna(row.get("SEM_CUSTOM_SYMBOL")):
         return row["SEM_CUSTOM_SYMBOL"]
 
     # For regular securities, prefer symbol name
@@ -149,9 +141,7 @@ def validate_security_data(row: Dict) -> Tuple[bool, str]:
     Returns:
         (is_valid, error_message)
     """
-    required_fields = [
-        "SEM_SMST_SECURITY_ID", "SEM_TRADING_SYMBOL", "SEM_EXM_EXCH_ID"
-    ]
+    required_fields = ["SEM_SMST_SECURITY_ID", "SEM_TRADING_SYMBOL", "SEM_EXM_EXCH_ID"]
 
     for field in required_fields:
         if not row.get(field) or pd.isna(row.get(field)):

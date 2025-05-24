@@ -16,12 +16,7 @@ def create_superuser(email, password, full_name=None):
             return
 
         # Create new superuser
-        user = User(id=uuid.uuid4(),
-                    email=email,
-                    hashed_password=get_password_hash(password),
-                    full_name=full_name,
-                    is_active=True,
-                    is_superuser=True)
+        user = User(id=uuid.uuid4(), email=email, hashed_password=get_password_hash(password), full_name=full_name, is_active=True, is_superuser=True)
         db.add(user)
         db.commit()
         logger.info(f"Superuser {email} created successfully.")
