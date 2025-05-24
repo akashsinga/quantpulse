@@ -12,7 +12,6 @@ from dotenv import load_dotenv, find_dotenv
 # Find the .env file - first look for it explicitly, then try autodetection
 env_path = Path(__file__).resolve().parent.parent / ".env"
 if env_path.exists():
-    print(f"Loading environment from: {env_path}")
     load_dotenv(env_path)
 else:
     # Fall back to auto-detecting .env file
@@ -67,7 +66,7 @@ class Settings(BaseSettings):
     CACHE_DIR: str = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "cache")
 
     # Logging
-    LOG_LEVEL: str = os.getenv("LOG_LEVEL", "INFO")
+    LOG_LEVEL: str = os.getenv("LOG_LEVEL", "DEBUG")
 
     # Timezone
     INDIA_TZ: timezone = timezone(timedelta(hours=5, minutes=30))

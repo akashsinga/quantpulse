@@ -12,7 +12,7 @@ from typing import Dict
 from app.core.celery_app import celery_app
 from app.db.session import SessionLocal
 from .securities_import_helpers import (filter_securities_and_futures, validate_security_data, validate_futures_data)
-from .securities_import_db import (ensure_nse_exchange, save_securities_batch, save_futures_batch, mark_expired_futures)
+from .securities_import_db import (ensure_nse_exchange, save_securities_batch, save_futures_batch, mark_expired_futures, process_all_securities, process_futures_relationships)
 from app.utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -22,7 +22,6 @@ logger = get_logger(__name__)
 def import_securities_task(self) -> Dict:
     """
     Celery task to import securities and futures from Dhan API
-    Complete implementation with securities and futures processing
     """
     task_id = self.request.id
     start_time = datetime.now()
@@ -36,10 +35,7 @@ def import_securities_task(self) -> Dict:
         logger.info("Downloading securities data from Dhan API")
         self.update_state(state='PROGRESS', meta={'status': 'Downloading data from Dhan API...', 'progress': 5})
 
-        response = requests.get(
-            "https://images.dhan.co/api-data/api-scrip-master.csv",
-            timeout=120  # Increased timeout for large file
-        )
+        response = requests.get("https://images.dhan.co/api-data/api-scrip-master.csv", timeout=120)
         response.raise_for_status()
 
         # Step 2: Parse CSV data
@@ -72,31 +68,27 @@ def import_securities_task(self) -> Dict:
         try:
             # Ensure NSE exchange exists
             self.update_state(state='PROGRESS', meta={'status': 'Setting up database...', 'progress': 35})
-
             nse_exchange = ensure_nse_exchange(db)
 
-            # Step 6: Save securities first (futures depend on them)
-            self.update_state(state='PROGRESS', meta={'status': f'Saving {len(securities_df)} securities to database...', 'progress': 40})
+            # Step 6: Process ALL securities first (including futures as securities)
+            self.update_state(state='PROGRESS', meta={'status': f'Processing {len(securities_df)} securities to database...', 'progress': 40})
 
-            securities_stats = save_securities_batch(db, securities_df, nse_exchange)
-            logger.info(f"Securities saved: {securities_stats}")
+            # Process regular securities AND create derivative securities from futures data
+            all_securities_stats = process_all_securities(db, securities_df, futures_df, nse_exchange)
+            logger.info(f"All securities processed: {all_securities_stats}")
 
-            # IMPORTANT: Ensure securities are fully committed before futures
-            # Small delay to ensure database consistency
-            import time
-            time.sleep(1)
-            logger.info("Securities committed, starting futures processing...")
+            # IMPORTANT: Commit all securities before processing futures
+            db.commit()
+            logger.info("All securities committed, starting futures processing...")
 
-            # Update progress after securities
-            self.update_state(state='PROGRESS', meta={'status': f'Saving {len(futures_df)} futures to database...', 'progress': 70, 'securities_stats': securities_stats})
+            # Step 7: Process futures (now that all securities exist)
+            self.update_state(state='PROGRESS', meta={'status': f'Processing {len(futures_df)} futures to database...', 'progress': 70, 'securities_stats': all_securities_stats})
 
-            # Step 7: Save futures (after securities exist)
-            futures_stats = save_futures_batch(db, futures_df)
-            logger.info(f"Futures saved: {futures_stats}")
+            futures_stats = process_futures_relationships(db, futures_df)
+            logger.info(f"Futures processed: {futures_stats}")
 
             # Step 8: Mark expired futures as inactive
             self.update_state(state='PROGRESS', meta={'status': 'Marking expired futures as inactive...', 'progress': 90})
-
             expired_count = mark_expired_futures(db)
 
         finally:
@@ -112,45 +104,27 @@ def import_securities_task(self) -> Dict:
             'duration_seconds': round(duration, 2),
             'started_at': start_time.isoformat(),
             'completed_at': end_time.isoformat(),
-
-            # Data statistics
             'total_downloaded': total_records,
             'total_filtered_securities': len(securities_df),
             'total_filtered_futures': len(futures_df),
-
-            # Securities results
-            'securities_created': securities_stats['created'],
-            'securities_updated': securities_stats['updated'],
-            'securities_skipped': securities_stats['skipped'],
-            'securities_errors': securities_stats['errors'],
-
-            # Futures results
+            'securities_created': all_securities_stats['created'],
+            'securities_updated': all_securities_stats['updated'],
+            'securities_skipped': all_securities_stats['skipped'],
+            'securities_errors': all_securities_stats['errors'],
             'futures_created': futures_stats['created'],
             'futures_updated': futures_stats['updated'],
             'futures_skipped': futures_stats['skipped'],
             'futures_errors': futures_stats['errors'],
-
-            # Maintenance
             'expired_futures_marked': expired_count,
-
-            # Summary
-            'total_errors': securities_stats['errors'] + futures_stats['errors']
+            'total_errors': all_securities_stats['errors'] + futures_stats['errors']
         }
 
         logger.info(f"Securities import completed successfully: {final_result}")
         return final_result
 
-    except requests.RequestException as e:
-        error_msg = f"Failed to download securities data: {str(e)}"
-        logger.error(error_msg)
-
-        self.update_state(state='FAILURE', meta={'error': error_msg, 'task_id': task_id})
-        raise Exception(error_msg)
-
     except Exception as e:
         error_msg = f"Securities import failed: {str(e)}"
         logger.error(error_msg, exc_info=True)
-
         self.update_state(state='FAILURE', meta={'error': error_msg, 'task_id': task_id})
         raise Exception(error_msg)
 

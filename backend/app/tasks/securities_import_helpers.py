@@ -62,9 +62,21 @@ def extract_underlying_symbol(futures_symbol: str) -> str:
     Examples:
     - "NIFTY-Jun2025-FUT" -> "NIFTY"
     - "RELIANCE-Mar2025-FUT" -> "RELIANCE"
+    - "NIFTY25JUN25875CE" -> "NIFTY"
     """
-    parts = futures_symbol.split("-")
-    return parts[0] if parts else futures_symbol
+    # Handle different formats
+    if "-" in futures_symbol:
+        parts = futures_symbol.split("-")
+        return parts[0] if parts else futures_symbol
+
+    # Handle formats like "NIFTY25JUN25875CE"
+    # Extract alphabetic part at the beginning
+    import re
+    match = re.match(r'^([A-Z]+)', futures_symbol)
+    if match:
+        return match.group(1)
+
+    return futures_symbol
 
 
 def parse_expiry_date(expiry_string: str) -> Optional[date]:

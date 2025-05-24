@@ -42,8 +42,8 @@ class LoguruConfig:
     def console_format(self) -> str:
         """Console log format with rich styling"""
         if self.enable_json_logs:
-            return "{time:YYYY-MM-DD HH:mm:ss.SSS} | <level>{level: <8}</level> | <cyan>{name}</cyan> | <cyan>{extra[request_id]}</cyan> | <cyan>{extra[user_id]}</cyan> | <level>{message}</level>"
-        return "<green>{time:YYYY-MM-DD HH:mm:ss.SSS}</green> | " "<level>{level: <8}</level> | " "<cyan>{name: <20}</cyan> | " "<blue>[{extra[request_id]}]</blue> | " "<magenta>[{extra[user_id]}]</magenta> | " "<level>{message}</level>"
+            return "{time:YYYY-MM-DD HH:mm:ss.SSS} | <level>{level: <8}</level> | <cyan>{name}</cyan> | <cyan>{extra[request_id]}</cyan> | <cyan>{extra[user_id]}</cyan> | {message}"
+        return "<green>{time:YYYY-MM-DD HH:mm:ss.SSS}</green> | " "<level>{level: <8}</level> | " "<cyan>{name: <20}</cyan> | " "<blue>[{extra[request_id]}]</blue> | " "<magenta>[{extra[user_id]}]</magenta> | " "{message}"
 
     @property
     def file_format(self) -> str:
@@ -187,6 +187,7 @@ def with_request_context(request_id: str, user_id: Optional[str] = None):
     """Decorator for adding request context to functions"""
 
     def decorator(func):
+
         def wrapper(*args, **kwargs):
             with LoggerContextManager(request_id, user_id):
                 return func(*args, **kwargs)
@@ -201,6 +202,7 @@ def log_execution_time(logger_name: Optional[str] = None):
     """Decorator to log function execution time"""
 
     def decorator(func):
+
         def wrapper(*args, **kwargs):
             import time
 
@@ -226,6 +228,7 @@ def log_async_execution_time(logger_name: Optional[str] = None):
     """Decorator to log async function execution time"""
 
     def decorator(func):
+
         async def wrapper(*args, **kwargs):
             import time
 
