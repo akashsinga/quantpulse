@@ -9,7 +9,7 @@ from app.tasks.securities_import import import_securities_task
 from app.api.deps import get_current_superadmin
 from app.db.models.user import User
 from app.core.celery_app import celery_app
-from utils.logger import get_logger
+from app.utils.logger import get_logger
 
 router = APIRouter()
 logger = get_logger(__name__)

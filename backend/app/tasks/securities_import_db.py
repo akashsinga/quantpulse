@@ -3,12 +3,6 @@
 import os
 import sys
 
-# Add the backend directory to Python path (same as main.py)
-sys.path.insert(
-    0,
-    os.path.dirname(os.path.dirname(os.path.dirname(
-        os.path.abspath(__file__)))))
-
 import uuid
 from datetime import datetime, date
 from typing import Dict, Optional, Tuple
@@ -23,7 +17,7 @@ from .securities_import_helpers import (map_security_type, get_security_name,
                                         extract_underlying_symbol,
                                         parse_expiry_date, get_contract_month,
                                         is_index_future)
-from utils.logger import get_logger
+from app.utils.logger import get_logger
 
 logger = get_logger(__name__)
 

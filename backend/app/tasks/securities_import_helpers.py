@@ -3,16 +3,10 @@
 import os
 import sys
 
-# Add the backend directory to Python path (same as main.py)
-sys.path.insert(
-    0,
-    os.path.dirname(os.path.dirname(os.path.dirname(
-        os.path.abspath(__file__)))))
-
 import pandas as pd
 from datetime import datetime, date
 from typing import Dict, Tuple, Optional
-from utils.logger import get_logger
+from app.utils.logger import get_logger
 
 logger = get_logger(__name__)
 

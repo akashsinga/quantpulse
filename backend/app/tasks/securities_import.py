@@ -3,12 +3,6 @@
 import os
 import sys
 
-# Add the backend directory to Python path (same as main.py)
-sys.path.insert(
-    0,
-    os.path.dirname(os.path.dirname(os.path.dirname(
-        os.path.abspath(__file__)))))
-
 import requests
 import pandas as pd
 from io import StringIO
@@ -22,7 +16,7 @@ from .securities_import_helpers import (filter_securities_and_futures,
                                         validate_futures_data)
 from .securities_import_db import (ensure_nse_exchange, save_securities_batch,
                                    save_futures_batch, mark_expired_futures)
-from utils.logger import get_logger
+from app.utils.logger import get_logger
 
 logger = get_logger(__name__)
 

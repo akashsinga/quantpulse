@@ -32,7 +32,7 @@ from app.db.session import SessionLocal, get_db
 from app.db.models.security import Security
 from app.db.models.derivatives import Future
 from app.db.models.exchange import Exchange
-from utils.logger import get_logger
+from app.utils.logger import get_logger
 from app.config import settings
 
 # Configure logging
@@ -46,7 +46,10 @@ BATCH_SIZE = 10  # Process in very small batches to avoid SQL limitations
 class SecuritiesImporter:
     """Handles importing securities from Dhan API into QuantPulse database."""
 
-    def __init__(self, workers: int = 8, full_refresh: bool = False, show_progress: bool = True):
+    def __init__(self,
+                 workers: int = 8,
+                 full_refresh: bool = False,
+                 show_progress: bool = True):
         """Initialize the importer.
 
         Args:
@@ -58,7 +61,18 @@ class SecuritiesImporter:
         self.full_refresh = full_refresh
         self.show_progress = show_progress
         self.exchanges_map = {}
-        self.metrics = {"securities_total": 0, "securities_created": 0, "securities_updated": 0, "securities_skipped": 0, "futures_total": 0, "futures_created": 0, "futures_updated": 0, "futures_skipped": 0, "errors": 0, "runtime_seconds": 0}
+        self.metrics = {
+            "securities_total": 0,
+            "securities_created": 0,
+            "securities_updated": 0,
+            "securities_skipped": 0,
+            "futures_total": 0,
+            "futures_created": 0,
+            "futures_updated": 0,
+            "futures_skipped": 0,
+            "errors": 0,
+            "runtime_seconds": 0
+        }
 
         # Load exchange mapping - using a separate session that will be closed after initialization
         with get_db() as db:
@@ -88,7 +102,12 @@ class SecuritiesImporter:
         if "NSE" not in self.exchanges_map:
             # Use a fixed UUID for NSE
             nse_id = uuid.UUID("984ffe13-dcfb-4362-8291-5f2bee2645ef")
-            nse = Exchange(id=nse_id, name="National Stock Exchange", code="NSE", country="India", timezone="Asia/Kolkata", is_active=True)
+            nse = Exchange(id=nse_id,
+                           name="National Stock Exchange",
+                           code="NSE",
+                           country="India",
+                           timezone="Asia/Kolkata",
+                           is_active=True)
             exchanges_to_create.append(nse)
             self.exchanges_map["NSE"] = nse_id
 
@@ -96,7 +115,12 @@ class SecuritiesImporter:
         if "BSE" not in self.exchanges_map:
             # Use a different fixed UUID for BSE
             bse_id = uuid.UUID("56d68a9b-c756-4baa-9786-3d1a7b2cfb2c")
-            bse = Exchange(id=bse_id, name="Bombay Stock Exchange", code="BSE", country="India", timezone="Asia/Kolkata", is_active=False)  # Set to inactive
+            bse = Exchange(id=bse_id,
+                           name="Bombay Stock Exchange",
+                           code="BSE",
+                           country="India",
+                           timezone="Asia/Kolkata",
+                           is_active=False)  # Set to inactive
             exchanges_to_create.append(bse)
             self.exchanges_map["BSE"] = bse_id
 
@@ -104,7 +128,8 @@ class SecuritiesImporter:
         if exchanges_to_create:
             db.add_all(exchanges_to_create)
             db.commit()
-            logger.info(f"Created {len(exchanges_to_create)} missing exchanges")
+            logger.info(
+                f"Created {len(exchanges_to_create)} missing exchanges")
 
     def _ensure_symbol_column_length(self, db: Session) -> None:
         """Check and increase symbol column length if needed.
@@ -115,30 +140,27 @@ class SecuritiesImporter:
         try:
             # Check current column length
             result = db.execute(
-                text(
-                    """
+                text("""
                 SELECT character_maximum_length 
                 FROM information_schema.columns 
                 WHERE table_name = 'securities' AND column_name = 'symbol'
-            """
-                )
-            ).scalar()
+            """)).scalar()
 
             if result and int(result) < 100:
                 # Column is too short, increase it
-                logger.info("Increasing securities.symbol column length to 100 characters")
+                logger.info(
+                    "Increasing securities.symbol column length to 100 characters"
+                )
                 db.execute(
-                    text(
-                        """
+                    text("""
                     ALTER TABLE securities 
                     ALTER COLUMN symbol TYPE varchar(100)
-                """
-                    )
-                )
+                """))
                 db.commit()
                 logger.info("Column length increased successfully")
             else:
-                logger.info("Securities.symbol column length is already sufficient")
+                logger.info(
+                    "Securities.symbol column length is already sufficient")
 
         except Exception as e:
             logger.error(f"Error checking/updating symbol column length: {e}")
@@ -151,7 +173,9 @@ class SecuritiesImporter:
             DataFrame with securities data
         """
         start_time = time.time()
-        logger.info(f"Downloading securities data from {settings.DHAN_SCRIP_MASTER_URL}")
+        logger.info(
+            f"Downloading securities data from {settings.DHAN_SCRIP_MASTER_URL}"
+        )
 
         try:
             # Download data without progress bar
@@ -161,7 +185,8 @@ class SecuritiesImporter:
 
             # Save backup copy
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            backup_path = os.path.join(CSV_BACKUP_DIR, f"dhan_securities_{timestamp}.csv")
+            backup_path = os.path.join(CSV_BACKUP_DIR,
+                                       f"dhan_securities_{timestamp}.csv")
             with open(backup_path, "wb") as f:
                 f.write(content)
             logger.info(f"Saved backup to {backup_path}")
@@ -177,26 +202,34 @@ class SecuritiesImporter:
             if self.show_progress:
                 logger.info(f" Done! ({len(df)} records)")
 
-            logger.info(f"Downloaded and parsed {len(df)} records in {time.time() - start_time:.2f} seconds")
+            logger.info(
+                f"Downloaded and parsed {len(df)} records in {time.time() - start_time:.2f} seconds"
+            )
             return df
 
         except requests.RequestException as e:
             logger.error(f"Error downloading securities data: {e}")
 
             # Try to use latest backup if available
-            backup_files = sorted([f for f in os.listdir(CSV_BACKUP_DIR) if f.startswith("dhan_securities_")])
+            backup_files = sorted([
+                f for f in os.listdir(CSV_BACKUP_DIR)
+                if f.startswith("dhan_securities_")
+            ])
             if backup_files:
                 latest_backup = os.path.join(CSV_BACKUP_DIR, backup_files[-1])
                 logger.info(f"Using latest backup from {latest_backup}")
 
                 if self.show_progress:
-                    logger.warning(f"Download failed. Using backup from {latest_backup}")
+                    logger.warning(
+                        f"Download failed. Using backup from {latest_backup}")
 
                 return pd.read_csv(latest_backup, low_memory=False)
 
-            raise RuntimeError("Failed to download securities data and no backup available")
+            raise RuntimeError(
+                "Failed to download securities data and no backup available")
 
-    def filter_data(self, df: pd.DataFrame) -> Tuple[pd.DataFrame, pd.DataFrame]:
+    def filter_data(self,
+                    df: pd.DataFrame) -> Tuple[pd.DataFrame, pd.DataFrame]:
         """Filter data to include only relevant NSE securities.
 
         Filtering criteria:
@@ -215,25 +248,34 @@ class SecuritiesImporter:
         nse_df = df[df["SEM_EXM_EXCH_ID"] == "NSE"]
 
         if len(nse_df) == 0:
-            logger.warning("No NSE securities found in the data. Check the exchange codes in the source data.")
+            logger.warning(
+                "No NSE securities found in the data. Check the exchange codes in the source data."
+            )
             # Return empty DataFrames to avoid errors
             return pd.DataFrame(), pd.DataFrame()
 
         # Filter main securities (stocks and indices) from NSE with specific instrument types
-        stocks_df = nse_df[(nse_df["SEM_SEGMENT"] == "E") & (nse_df["SEM_EXCH_INSTRUMENT_TYPE"] == "ES")]
-        indices_df = nse_df[(nse_df["SEM_SEGMENT"] == "I") & (nse_df["SEM_EXCH_INSTRUMENT_TYPE"] == "INDEX")]
+        stocks_df = nse_df[(nse_df["SEM_SEGMENT"] == "E")
+                           & (nse_df["SEM_EXCH_INSTRUMENT_TYPE"] == "ES")]
+        indices_df = nse_df[(nse_df["SEM_SEGMENT"] == "I")
+                            & (nse_df["SEM_EXCH_INSTRUMENT_TYPE"] == "INDEX")]
 
         # Combine stocks and indices
         securities_df = pd.concat([stocks_df, indices_df])
 
         # Filter futures from NSE with specific instrument types
-        futures_df = nse_df[(nse_df["SEM_SEGMENT"] == "D") & (nse_df["SEM_INSTRUMENT_NAME"].isin(["FUTSTK", "FUTIDX"]))]
+        futures_df = nse_df[(nse_df["SEM_SEGMENT"] == "D") & (
+            nse_df["SEM_INSTRUMENT_NAME"].isin(["FUTSTK", "FUTIDX"]))]
 
-        logger.info(f"Filtered {len(stocks_df)} NSE stocks and {len(indices_df)} NSE indices for a total of {len(securities_df)} securities")
+        logger.info(
+            f"Filtered {len(stocks_df)} NSE stocks and {len(indices_df)} NSE indices for a total of {len(securities_df)} securities"
+        )
         logger.info(f"Filtered {len(futures_df)} NSE futures")
 
         if self.show_progress:
-            logger.info(f"Filtered {len(stocks_df)} NSE stocks and {len(indices_df)} NSE indices")
+            logger.info(
+                f"Filtered {len(stocks_df)} NSE stocks and {len(indices_df)} NSE indices"
+            )
             logger.info(f"Filtered {len(futures_df)} NSE futures")
 
         return securities_df, futures_df
@@ -272,7 +314,8 @@ class SecuritiesImporter:
         # Skip non-NSE securities
         if row["SEM_EXM_EXCH_ID"] != "NSE":
             result["status"] = "skipped"
-            result["error"] = f"Skipping non-NSE exchange: {row['SEM_EXM_EXCH_ID']}"
+            result[
+                "error"] = f"Skipping non-NSE exchange: {row['SEM_EXM_EXCH_ID']}"
             return result
 
         # Create a new session for this operation
@@ -290,22 +333,29 @@ class SecuritiesImporter:
             symbol = row["SEM_TRADING_SYMBOL"]
 
             # First check by external_id (preferred)
-            existing = db.query(Security).filter(Security.external_id == external_id).first()
+            existing = db.query(Security).filter(
+                Security.external_id == external_id).first()
 
             # If not found by external_id, check by symbol and exchange
             if not existing:
-                existing = db.query(Security).filter(Security.symbol == symbol, Security.exchange_id == exchange_id).first()
+                existing = db.query(Security).filter(
+                    Security.symbol == symbol,
+                    Security.exchange_id == exchange_id).first()
 
                 # If found by symbol+exchange but has different external_id, this is unusual
                 # but we'll update it to match the current row
                 if existing and existing.external_id != external_id:
-                    logger.warning(f"Security found with same symbol+exchange but different external_id: {symbol} (DB: {existing.external_id}, CSV: {external_id})")
+                    logger.warning(
+                        f"Security found with same symbol+exchange but different external_id: {symbol} (DB: {existing.external_id}, CSV: {external_id})"
+                    )
 
             security_type = self.map_to_security_type(row)
 
             # Get name with priority order: SEM_CUSTOM_SYMBOL (for futures), SM_SYMBOL_NAME, SEM_TRADING_SYMBOL
-            if security_type == "DERIVATIVE" and pd.notna(row.get("SEM_CUSTOM_SYMBOL")):
-                name = row["SEM_CUSTOM_SYMBOL"]  # Use the custom symbol which should have proper naming
+            if security_type == "DERIVATIVE" and pd.notna(
+                    row.get("SEM_CUSTOM_SYMBOL")):
+                name = row[
+                    "SEM_CUSTOM_SYMBOL"]  # Use the custom symbol which should have proper naming
             elif pd.notna(row.get("SM_SYMBOL_NAME")):
                 name = row["SM_SYMBOL_NAME"]
             else:
@@ -326,7 +376,9 @@ class SecuritiesImporter:
             else:
                 # Double-check again to avoid race conditions with other threads
                 # This helps prevent unique constraint violations
-                check_again = db.query(Security).filter(Security.symbol == symbol, Security.exchange_id == exchange_id).first()
+                check_again = db.query(Security).filter(
+                    Security.symbol == symbol,
+                    Security.exchange_id == exchange_id).first()
 
                 if check_again:
                     # Another thread created this security between our first check and now
@@ -343,7 +395,15 @@ class SecuritiesImporter:
                     result["security"] = check_again
                 else:
                     # Create new security
-                    new_security = Security(id=uuid.uuid4(), symbol=symbol, name=name, exchange_id=exchange_id, security_type=security_type, segment="EQUITY", external_id=external_id, is_active=True)  # All are EQUITY for now
+                    new_security = Security(
+                        id=uuid.uuid4(),
+                        symbol=symbol,
+                        name=name,
+                        exchange_id=exchange_id,
+                        security_type=security_type,
+                        segment="EQUITY",
+                        external_id=external_id,
+                        is_active=True)  # All are EQUITY for now
                     db.add(new_security)
 
                     try:
@@ -353,10 +413,13 @@ class SecuritiesImporter:
                     except SQLAlchemyError as e:
                         # If we hit a unique constraint error, try to find the existing record
                         db.rollback()
-                        logger.warning(f"Conflict while creating security {symbol}: {e}")
+                        logger.warning(
+                            f"Conflict while creating security {symbol}: {e}")
 
                         # Look up the record again
-                        final_check = db.query(Security).filter(Security.symbol == symbol, Security.exchange_id == exchange_id).first()
+                        final_check = db.query(Security).filter(
+                            Security.symbol == symbol,
+                            Security.exchange_id == exchange_id).first()
 
                         if final_check:
                             # Update and return the existing record
@@ -374,13 +437,17 @@ class SecuritiesImporter:
                             # Something else went wrong
                             result["status"] = "error"
                             result["error"] = str(e)
-                            logger.error(f"Failed to create or find security {symbol}: {e}")
+                            logger.error(
+                                f"Failed to create or find security {symbol}: {e}"
+                            )
 
         except Exception as e:
             db.rollback()
             result["status"] = "error"
             result["error"] = str(e)
-            logger.error(f"Error processing security {row.get('SEM_TRADING_SYMBOL', 'unknown')}: {e}")
+            logger.error(
+                f"Error processing security {row.get('SEM_TRADING_SYMBOL', 'unknown')}: {e}"
+            )
         finally:
             db.close()  # Always close the session
 
@@ -399,7 +466,7 @@ class SecuritiesImporter:
 
         # Break into smaller batches for processing
         for i in range(0, len(chunk), BATCH_SIZE):
-            batch = chunk.iloc[i : i + BATCH_SIZE]
+            batch = chunk.iloc[i:i + BATCH_SIZE]
 
             for _, row in batch.iterrows():
                 result = self.process_security(row)
@@ -422,22 +489,34 @@ class SecuritiesImporter:
             securities_df: DataFrame with securities to process
         """
         start_time = time.time()
-        logger.info(f"Processing {len(securities_df)} NSE securities with {self.workers} workers")
+        logger.info(
+            f"Processing {len(securities_df)} NSE securities with {self.workers} workers"
+        )
 
         # Split data into chunks
         chunk_size = 100
-        chunks = [securities_df.iloc[i : i + chunk_size] for i in range(0, len(securities_df), chunk_size)]
-        logger.info(f"Split data into {len(chunks)} chunks of {chunk_size} records")
+        chunks = [
+            securities_df.iloc[i:i + chunk_size]
+            for i in range(0, len(securities_df), chunk_size)
+        ]
+        logger.info(
+            f"Split data into {len(chunks)} chunks of {chunk_size} records")
 
         total_stats = {"created": 0, "updated": 0, "skipped": 0, "errors": 0}
 
         # Log progress periodically instead of using tqdm
         if self.show_progress:
-            logger.info(f"Processing {len(securities_df)} NSE securities in {len(chunks)} chunks...")
+            logger.info(
+                f"Processing {len(securities_df)} NSE securities in {len(chunks)} chunks..."
+            )
 
         # Process chunks in parallel
-        with concurrent.futures.ThreadPoolExecutor(max_workers=self.workers) as executor:
-            future_to_chunk = {executor.submit(self.process_securities_chunk, chunk): i for i, chunk in enumerate(chunks)}
+        with concurrent.futures.ThreadPoolExecutor(
+                max_workers=self.workers) as executor:
+            future_to_chunk = {
+                executor.submit(self.process_securities_chunk, chunk): i
+                for i, chunk in enumerate(chunks)
+            }
 
             completed = 0
             for future in concurrent.futures.as_completed(future_to_chunk):
@@ -449,7 +528,9 @@ class SecuritiesImporter:
                 if completed % log_interval == 0 or completed == len(chunks):
                     if self.show_progress:
                         progress_pct = (completed / len(chunks)) * 100
-                        logger.info(f"Progress: {completed}/{len(chunks)} chunks ({progress_pct:.1f}%)...")
+                        logger.info(
+                            f"Progress: {completed}/{len(chunks)} chunks ({progress_pct:.1f}%)..."
+                        )
 
                 try:
                     stats = future.result()
@@ -457,15 +538,21 @@ class SecuritiesImporter:
                     for key in total_stats:
                         total_stats[key] += stats[key]
 
-                    logger.info(f"Completed chunk {chunk_idx+1}/{len(chunks)}: {stats}")
+                    logger.info(
+                        f"Completed chunk {chunk_idx+1}/{len(chunks)}: {stats}"
+                    )
                 except Exception as e:
                     logger.error(f"Error in chunk {chunk_idx}: {e}")
                     total_stats["errors"] += len(chunks[chunk_idx])
 
         duration = time.time() - start_time
-        logger.info(f"Finished processing securities in {duration:.2f} seconds: {total_stats}")
+        logger.info(
+            f"Finished processing securities in {duration:.2f} seconds: {total_stats}"
+        )
         if self.show_progress:
-            logger.info(f"Securities processing complete: {total_stats['created']} created, {total_stats['updated']} updated, {total_stats['errors']} errors")
+            logger.info(
+                f"Securities processing complete: {total_stats['created']} created, {total_stats['updated']} updated, {total_stats['errors']} errors"
+            )
 
         # Update metrics
         self.metrics["securities_total"] = len(securities_df)
@@ -503,7 +590,8 @@ class SecuritiesImporter:
         # Skip non-NSE securities
         if row["SEM_EXM_EXCH_ID"] != "NSE":
             result["status"] = "skipped"
-            result["error"] = f"Skipping non-NSE exchange: {row['SEM_EXM_EXCH_ID']}"
+            result[
+                "error"] = f"Skipping non-NSE exchange: {row['SEM_EXM_EXCH_ID']}"
             return result
 
         # Create a new session for this operation
@@ -514,7 +602,8 @@ class SecuritiesImporter:
             symbol = row["SEM_TRADING_SYMBOL"]
 
             # Check if the security exists by external_id
-            security = db.query(Security).filter(Security.external_id == external_id).first()
+            security = db.query(Security).filter(
+                Security.external_id == external_id).first()
 
             # If security doesn't exist, create it (with a new session inside process_security)
             if not security:
@@ -528,34 +617,42 @@ class SecuritiesImporter:
 
                 if security_result["status"] in ["created", "updated"]:
                     # Look up the security using the external_id
-                    security = db.query(Security).filter(Security.external_id == external_id).first()
+                    security = db.query(Security).filter(
+                        Security.external_id == external_id).first()
 
                     if not security:
                         result["status"] = "error"
-                        result["error"] = f"Security was created but cannot be found: {external_id}"
+                        result[
+                            "error"] = f"Security was created but cannot be found: {external_id}"
                         return result
                 else:
                     result["status"] = "skipped"
-                    result["error"] = f"Failed to create security: {security_result['error']}"
+                    result[
+                        "error"] = f"Failed to create security: {security_result['error']}"
                     return result
 
             # Extract the underlying symbol
             underlying_symbol = self.extract_underlying_symbol(row)
 
             # Find underlying security
-            underlying = db.query(Security).filter(Security.symbol == underlying_symbol, Security.security_type.in_(["STOCK", "INDEX"])).first()
+            underlying = db.query(Security).filter(
+                Security.symbol == underlying_symbol,
+                Security.security_type.in_(["STOCK", "INDEX"])).first()
 
             if not underlying:
                 result["status"] = "skipped"
-                result["error"] = f"Underlying security not found: {underlying_symbol}"
+                result[
+                    "error"] = f"Underlying security not found: {underlying_symbol}"
                 return result
 
             # Parse expiry date
             try:
-                expiry_date = datetime.strptime(row["SEM_EXPIRY_DATE"].split()[0], "%Y-%m-%d").date()
+                expiry_date = datetime.strptime(
+                    row["SEM_EXPIRY_DATE"].split()[0], "%Y-%m-%d").date()
             except (ValueError, AttributeError):
                 result["status"] = "error"
-                result["error"] = f"Invalid expiry date: {row['SEM_EXPIRY_DATE']}"
+                result[
+                    "error"] = f"Invalid expiry date: {row['SEM_EXPIRY_DATE']}"
                 return result
 
             # Get contract month from expiry date
@@ -572,7 +669,8 @@ class SecuritiesImporter:
                 lot_size = 1  # Default
 
             # Check if future already exists
-            existing = db.query(Future).filter(Future.security_id == security.id).first()
+            existing = db.query(Future).filter(
+                Future.security_id == security.id).first()
 
             if existing:
                 # Update existing future
@@ -587,7 +685,15 @@ class SecuritiesImporter:
                 result["future"] = existing
             else:
                 # Create new future
-                new_future = Future(security_id=security.id, underlying_id=underlying.id, expiration_date=expiry_date, contract_size=1.0, lot_size=lot_size, settlement_type="CASH" if is_index else "PHYSICAL", contract_month=contract_month, is_active=True)
+                new_future = Future(
+                    security_id=security.id,
+                    underlying_id=underlying.id,
+                    expiration_date=expiry_date,
+                    contract_size=1.0,
+                    lot_size=lot_size,
+                    settlement_type="CASH" if is_index else "PHYSICAL",
+                    contract_month=contract_month,
+                    is_active=True)
 
                 db.add(new_future)
 
@@ -598,7 +704,8 @@ class SecuritiesImporter:
                 except SQLAlchemyError as e:
                     db.rollback()
                     # Check if the future now exists (created by another thread)
-                    check_existing = db.query(Future).filter(Future.security_id == security.id).first()
+                    check_existing = db.query(Future).filter(
+                        Future.security_id == security.id).first()
                     if check_existing:
                         # Update it
                         check_existing.underlying_id = underlying.id
@@ -613,13 +720,16 @@ class SecuritiesImporter:
                     else:
                         result["status"] = "error"
                         result["error"] = str(e)
-                        logger.error(f"Failed to create future for {symbol}: {e}")
+                        logger.error(
+                            f"Failed to create future for {symbol}: {e}")
 
         except Exception as e:
             db.rollback()
             result["status"] = "error"
             result["error"] = str(e)
-            logger.error(f"Error processing future {row.get('SEM_TRADING_SYMBOL', 'unknown')}: {e}")
+            logger.error(
+                f"Error processing future {row.get('SEM_TRADING_SYMBOL', 'unknown')}: {e}"
+            )
         finally:
             db.close()  # Always close the session
 
@@ -638,7 +748,7 @@ class SecuritiesImporter:
 
         # Break into smaller batches for processing
         for i in range(0, len(chunk), BATCH_SIZE):
-            batch = chunk.iloc[i : i + BATCH_SIZE]
+            batch = chunk.iloc[i:i + BATCH_SIZE]
 
             for _, row in batch.iterrows():
                 # Process each future without using a cache
@@ -662,22 +772,34 @@ class SecuritiesImporter:
             futures_df: DataFrame with futures to process
         """
         start_time = time.time()
-        logger.info(f"Processing {len(futures_df)} NSE futures with {self.workers} workers")
+        logger.info(
+            f"Processing {len(futures_df)} NSE futures with {self.workers} workers"
+        )
 
         # Split data into chunks
         chunk_size = 100
-        chunks = [futures_df.iloc[i : i + chunk_size] for i in range(0, len(futures_df), chunk_size)]
-        logger.info(f"Split data into {len(chunks)} chunks of {chunk_size} records")
+        chunks = [
+            futures_df.iloc[i:i + chunk_size]
+            for i in range(0, len(futures_df), chunk_size)
+        ]
+        logger.info(
+            f"Split data into {len(chunks)} chunks of {chunk_size} records")
 
         total_stats = {"created": 0, "updated": 0, "skipped": 0, "errors": 0}
 
         # Log progress periodically instead of using tqdm
         if self.show_progress:
-            logger.info(f"Processing {len(futures_df)} NSE futures in {len(chunks)} chunks...")
+            logger.info(
+                f"Processing {len(futures_df)} NSE futures in {len(chunks)} chunks..."
+            )
 
         # Process chunks in parallel
-        with concurrent.futures.ThreadPoolExecutor(max_workers=self.workers) as executor:
-            future_to_chunk = {executor.submit(self.process_futures_chunk, chunk): i for i, chunk in enumerate(chunks)}
+        with concurrent.futures.ThreadPoolExecutor(
+                max_workers=self.workers) as executor:
+            future_to_chunk = {
+                executor.submit(self.process_futures_chunk, chunk): i
+                for i, chunk in enumerate(chunks)
+            }
 
             completed = 0
             for future in concurrent.futures.as_completed(future_to_chunk):
@@ -689,7 +811,9 @@ class SecuritiesImporter:
                 if completed % log_interval == 0 or completed == len(chunks):
                     if self.show_progress:
                         progress_pct = (completed / len(chunks)) * 100
-                        logger.info(f"Progress: {completed}/{len(chunks)} chunks ({progress_pct:.1f}%)...")
+                        logger.info(
+                            f"Progress: {completed}/{len(chunks)} chunks ({progress_pct:.1f}%)..."
+                        )
 
                 try:
                     stats = future.result()
@@ -697,15 +821,21 @@ class SecuritiesImporter:
                     for key in total_stats:
                         total_stats[key] += stats[key]
 
-                    logger.info(f"Completed futures chunk {chunk_idx+1}/{len(chunks)}: {stats}")
+                    logger.info(
+                        f"Completed futures chunk {chunk_idx+1}/{len(chunks)}: {stats}"
+                    )
                 except Exception as e:
                     logger.error(f"Error in futures chunk {chunk_idx}: {e}")
                     total_stats["errors"] += len(chunks[chunk_idx])
 
         duration = time.time() - start_time
-        logger.info(f"Finished processing futures in {duration:.2f} seconds: {total_stats}")
+        logger.info(
+            f"Finished processing futures in {duration:.2f} seconds: {total_stats}"
+        )
         if self.show_progress:
-            logger.info(f"Futures processing complete: {total_stats['created']} created, {total_stats['updated']} updated, {total_stats['errors']} errors")
+            logger.info(
+                f"Futures processing complete: {total_stats['created']} created, {total_stats['updated']} updated, {total_stats['errors']} errors"
+            )
 
         # Update metrics
         self.metrics["futures_total"] = len(futures_df)
@@ -727,10 +857,14 @@ class SecuritiesImporter:
         with get_db() as db:
             try:
                 # Get futures that have expired but are still marked active
-                expired_futures = db.query(Future).filter(Future.expiration_date < today, Future.is_active == True).all()
+                expired_futures = db.query(Future).filter(
+                    Future.expiration_date < today,
+                    Future.is_active == True).all()
 
                 if self.show_progress and expired_futures:
-                    logger.info(f"Marking {len(expired_futures)} expired futures as inactive...")
+                    logger.info(
+                        f"Marking {len(expired_futures)} expired futures as inactive..."
+                    )
 
                 # Mark them as inactive
                 for future in expired_futures:
@@ -738,7 +872,8 @@ class SecuritiesImporter:
                     marked_count += 1
 
                 db.commit()
-                logger.info(f"Marked {marked_count} expired futures as inactive")
+                logger.info(
+                    f"Marked {marked_count} expired futures as inactive")
 
             except SQLAlchemyError as e:
                 db.rollback()
@@ -753,13 +888,20 @@ class SecuritiesImporter:
             Metrics dictionary
         """
         start_time = time.time()
-        logger.info(f"Starting NSE securities import (full_refresh={self.full_refresh})")
+        logger.info(
+            f"Starting NSE securities import (full_refresh={self.full_refresh})"
+        )
 
         if self.show_progress:
-            logger.info(f"\n{'='*80}\n QuantPulse NSE Securities Import\n{'='*80}")
-            logger.info(f" Mode: {'Full Refresh' if self.full_refresh else 'Incremental Update'}")
+            logger.info(
+                f"\n{'='*80}\n QuantPulse NSE Securities Import\n{'='*80}")
+            logger.info(
+                f" Mode: {'Full Refresh' if self.full_refresh else 'Incremental Update'}"
+            )
             logger.info(f" Workers: {self.workers}")
-            logger.info(f" Started at: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
+            logger.info(
+                f" Started at: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
+            )
             logger.info(f" Importing only NSE securities")
 
         try:
@@ -779,13 +921,21 @@ class SecuritiesImporter:
             # Update final metrics
             self.metrics["runtime_seconds"] = time.time() - start_time
 
-            logger.info(f"Import completed in {self.metrics['runtime_seconds']:.2f} seconds")
+            logger.info(
+                f"Import completed in {self.metrics['runtime_seconds']:.2f} seconds"
+            )
 
             if self.show_progress:
                 logger.info(f"\n{'='*80}")
-                logger.info(f" Import completed in {self.metrics['runtime_seconds']:.2f} seconds")
-                logger.info(f" Securities: {self.metrics['securities_created']} created, {self.metrics['securities_updated']} updated")
-                logger.info(f" Futures: {self.metrics['futures_created']} created, {self.metrics['futures_updated']} updated")
+                logger.info(
+                    f" Import completed in {self.metrics['runtime_seconds']:.2f} seconds"
+                )
+                logger.info(
+                    f" Securities: {self.metrics['securities_created']} created, {self.metrics['securities_updated']} updated"
+                )
+                logger.info(
+                    f" Futures: {self.metrics['futures_created']} created, {self.metrics['futures_updated']} updated"
+                )
                 logger.info(f" Errors: {self.metrics['errors']}")
                 logger.info(f"{'='*80}\n")
 
@@ -798,7 +948,9 @@ class SecuritiesImporter:
 
             if self.show_progress:
                 logger.error(f"\n{'='*80}")
-                logger.error(f" Import FAILED after {self.metrics['runtime_seconds']:.2f} seconds")
+                logger.error(
+                    f" Import FAILED after {self.metrics['runtime_seconds']:.2f} seconds"
+                )
                 logger.error(f" Error: {str(e)}")
                 logger.error(f"{'='*80}\n")
 
@@ -808,14 +960,24 @@ class SecuritiesImporter:
 # CLI Entry point
 def main():
     """Command-line entry point."""
-    parser = argparse.ArgumentParser(description="Import securities from Dhan API")
-    parser.add_argument("--full", action="store_true", help="Perform full refresh")
-    parser.add_argument("--workers", type=int, default=8, help="Number of worker threads")
-    parser.add_argument("--no-progress", action="store_true", help="Hide progress bars")
+    parser = argparse.ArgumentParser(
+        description="Import securities from Dhan API")
+    parser.add_argument("--full",
+                        action="store_true",
+                        help="Perform full refresh")
+    parser.add_argument("--workers",
+                        type=int,
+                        default=8,
+                        help="Number of worker threads")
+    parser.add_argument("--no-progress",
+                        action="store_true",
+                        help="Hide progress bars")
     args = parser.parse_args()
 
     # Don't pass a db session to the importer - it will create its own sessions
-    importer = SecuritiesImporter(workers=args.workers, full_refresh=args.full, show_progress=not args.no_progress)
+    importer = SecuritiesImporter(workers=args.workers,
+                                  full_refresh=args.full,
+                                  show_progress=not args.no_progress)
     metrics = importer.run()
 
     # Return 1 if there were errors
@@ -823,7 +985,9 @@ def main():
 
 
 # Function for API integration
-def import_securities_api(background_tasks=None, workers=8, full_refresh=False):
+def import_securities_api(background_tasks=None,
+                          workers=8,
+                          full_refresh=False):
     """Run securities import from API endpoint.
 
     Args:
@@ -837,7 +1001,9 @@ def import_securities_api(background_tasks=None, workers=8, full_refresh=False):
 
     def _run_import():
         # Create importer without passing a db session
-        importer = SecuritiesImporter(workers=workers, full_refresh=full_refresh, show_progress=False)  # No progress bars in API mode
+        importer = SecuritiesImporter(
+            workers=workers, full_refresh=full_refresh,
+            show_progress=False)  # No progress bars in API mode
         return importer.run()
 
     # If background_tasks is provided, run in background
