@@ -3,9 +3,9 @@
 from fastapi import Depends, HTTPException, status, Request
 from fastapi.security import OAuth2PasswordBearer
 from jose import JWTError, jwt
-from db.session import get_db_session
-from config import settings
-from db.models.user import User
+from app.db.session import get_db_session
+from app.config import settings
+from app.db.models.user import User
 from app.schemas.auth import TokenData
 from app.utils.logger import get_logger
 

@@ -11,6 +11,7 @@ from app.api.middlewares.request import RequestMiddleware
 
 from app.config import settings
 from app.api.v1 import auth
+from app.api.v1 import securities
 
 import os
 import sys
@@ -55,6 +56,9 @@ app.add_middleware(RequestMiddleware)
 app.include_router(auth.router,
                    prefix=f"{settings.API_V1_PREFIX}/auth",
                    tags=["auth"])
+app.include_router(securities.router,
+                   prefix=f"{settings.API_V1_PREFIX}/securities",
+                   tags=["securities"])
 
 
 @app.get("/", tags=["root"])
