@@ -39,7 +39,7 @@ class DhanAPIClient:
             raise ValueError("DHAN_ACCESS_TOKEN and DHAN_CLIENT_ID must be set in environment")
 
         self.session = requests.Session()
-        self.session.headers.update({'Content-Type': 'application/json', 'access-token': self.access_token, 'client-id': self.client_id})
+        self.session.headers.update({'Accept': 'application/json', 'Content-Type': 'application/json', 'access-token': self.access_token, 'client-id': self.client_id})
 
         logger.info(f"Initialized Dhan API client")
 
@@ -178,8 +178,8 @@ class DhanAPIClient:
         """
         try:
             # Test with a simple request
-            test_payload = {"NSE_EQ": ["1333"]}  # TCS
-            response = self.session.post(self.today_eod_url, json=test_payload, timeout=10)
+            test_payload = {"securityId": "1333", "exchangeSegment": "NSE_EQ", "instrument": "EQUITY", "expiryCode": 0, "oi": False, "fromDate": "2022-01-08", "toDate": "2022-02-08"}
+            response = self.session.post(self.historical_url, json=test_payload, timeout=10)
             self._handle_response(response, "ConnectionTest")
             logger.info("Dhan API connection test successful")
             return True

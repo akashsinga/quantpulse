@@ -9,6 +9,8 @@ from app.core.celery_app import celery_app
 from app.services.data_fetchers.ohlcv_fetcher import create_ohlcv_fetcher
 from app.services.weekly_aggregator import WeeklyDataAggregator
 from app.utils.logger import get_logger
+from app.db.models.security import Security
+from sqlalchemy import and_
 
 logger = get_logger(__name__)
 
