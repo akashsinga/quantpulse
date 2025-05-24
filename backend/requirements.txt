@@ -47,6 +47,7 @@ pandas-datareader>=0.10.0  # For fetching financial data from various sources
 requests>=2.31.0
 httpx>=0.24.1  # Async HTTP client
 aiohttp>=3.8.5  # Alternative async HTTP client
+aiofiles>=23.1.0
 
 # Utilities
 tenacity>=8.2.3  # For retry logic
