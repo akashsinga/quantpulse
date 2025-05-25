@@ -26,7 +26,7 @@ class Security(Base):
     exchange_id = Column(UUID(as_uuid=True), ForeignKey("exchanges.id"), nullable=False)
     security_type = Column(String(20), nullable=False)  # STOCK, INDEX, DERIVATIVE
     segment = Column(String(20), nullable=False)  # EQUITY, CURRENCY, COMMODITY
-    external_id = Column(Integer, nullable=False, index=True)  # Dhan's Security ID
+    external_id = Column(Integer, nullable=False, unique=True, index=True)  # Added unique=True
     sector = Column(String(100))
     industry = Column(String(100))
     is_active = Column(Boolean, default=True)
@@ -46,6 +46,3 @@ class Security(Base):
 
     # Fixed relationship with proper overlaps parameter
     futures = relationship("Future", back_populates="security", uselist=False, foreign_keys="Future.security_id")
-
-    # Fixed: Add overlaps parameter to resolve SQLAlchemy warning
-    derivative_underlyings = relationship("Security", secondary="futures", primaryjoin="Security.id==Future.security_id", secondaryjoin="Security.id==Future.underlying_id", backref="derivatives", overlaps="futures")
