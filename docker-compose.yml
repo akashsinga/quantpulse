@@ -22,22 +22,24 @@ services:
       - redis_data:/data
     command: redis-server --appendonly yes
 
-  # Celery Worker for background tasks
+  # Single Celery Worker (simplified) - HANDLES ALL QUEUES
   celery-worker:
     build: .
     container_name: quantpulse-celery-worker
     environment:
       - DATABASE_URL=postgresql+psycopg2://postgres:password@postgres:5432/quantpulse
       - REDIS_URL=redis://redis:6379/0
+      - PYTHONPATH=/app
     depends_on:
       - postgres
       - redis
     volumes:
       - ./backend:/app
-      - ./.env:/app/.env
-    command: celery -A app.core.celery_app:celery_app worker --loglevel=info --concurrency=16
+    working_dir: /app
+    command: celery -A app.core.celery_app worker --loglevel=info --concurrency=8 --queues=default,import,data_fetch,aggregation,maintenance --without-gossip --without-mingle
+    restart: unless-stopped
 
-  # Your FastAPI Application
+  # FastAPI Application
   api:
     build: .
     container_name: quantpulse-api
@@ -46,13 +48,15 @@ services:
     environment:
       - DATABASE_URL=postgresql+psycopg2://postgres:password@postgres:5432/quantpulse
       - REDIS_URL=redis://redis:6379/0
+      - PYTHONPATH=/app
     depends_on:
       - postgres
       - redis
     volumes:
       - ./backend:/app
-      - ./.env:/app/.env
-    command: uvicorn app.api.main:app --host 0.0.0.0 --port 8000 --reload --reload-dir /app
+    working_dir: /app
+    command: uvicorn app.api.main:app --host 0.0.0.0 --port 8000 --reload
+    restart: unless-stopped
 
 volumes:
   postgres_data:

@@ -17,13 +17,14 @@ RUN apt-get update && apt-get install -y \
 # Copy requirements.txt first (this helps with Docker's caching)
 COPY backend/requirements.txt .
 
-# COPY .env .
-
 # Install Python dependencies
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy all your backend code into the container
 COPY backend/ .
+
+# IMPORTANT: Add the current directory to Python path
+ENV PYTHONPATH=/app:$PYTHONPATH
 
 # Tell Docker this container will listen on port 8000
 EXPOSE 8000
