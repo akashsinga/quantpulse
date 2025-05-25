@@ -4,7 +4,6 @@ import requests
 import time
 from typing import Dict, List, Optional, Any
 from datetime import datetime, date
-from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
 import json
 
 from app.config import settings
@@ -26,7 +25,7 @@ class RateLimitError(DhanAPIError):
 class DhanAPIClient:
     """
     Dhan API client for fetching OHLCV data
-    Handles authentication, rate limiting, and error handling
+    Note: Internal rate limiting DISABLED - use DistributedRateLimitedDhanClient instead
     """
 
     def __init__(self):
@@ -41,7 +40,7 @@ class DhanAPIClient:
         self.session = requests.Session()
         self.session.headers.update({'Accept': 'application/json', 'Content-Type': 'application/json', 'access-token': self.access_token, 'client-id': self.client_id})
 
-        logger.info(f"Initialized Dhan API client")
+        logger.info(f"Initialized Dhan API client (rate limiting handled externally)")
 
     def _handle_response(self, response: requests.Response, request_type: str) -> Dict[str, Any]:
         """Handle API response and raise appropriate exceptions"""
@@ -56,8 +55,8 @@ class DhanAPIClient:
 
                 # Handle rate limiting
                 if error_code in ['DH-904', '805']:
-                    logger.warning(f"Rate limit hit for {request_type}: {error_message}")
-                    raise RateLimitError(f"Rate limit exceeded: {error_message}")
+                    logger.warning(f"Rate limit response from API for {request_type}: {error_message}")
+                    raise RateLimitError(f"API rate limit: {error_message}")
 
                 # Handle authentication errors
                 if error_code in ['DH-901', 'DH-808', 'DH-809']:
@@ -83,10 +82,12 @@ class DhanAPIClient:
         except json.JSONDecodeError as e:
             raise DhanAPIError(f"Invalid JSON response: {e}")
 
-    @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=1, max=16), retry=retry_if_exception_type(RateLimitError), reraise=True)
     def fetch_historical_data(self, security_id: str, exchange_segment: str, instrument: str, from_date: str = "2000-01-01", to_date: Optional[str] = None) -> Dict[str, Any]:
         """
         Fetch historical OHLCV data for a single security
+        
+        WARNING: This method has NO internal rate limiting.
+        Use DistributedRateLimitedDhanClient for proper coordination.
         
         Args:
             security_id: Dhan security ID
@@ -124,17 +125,16 @@ class DhanAPIClient:
             logger.info(f"Successfully fetched {len(data['timestamp'])} historical records for {security_id}")
             return data
 
-        except RateLimitError:
-            logger.warning(f"Rate limit hit, retrying historical fetch for {security_id}")
-            raise
         except Exception as e:
             logger.error(f"Failed to fetch historical data for {security_id}: {e}")
             raise
 
-    @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=1, max=16), retry=retry_if_exception_type(RateLimitError), reraise=True)
     def fetch_today_eod_data(self, securities_by_segment: Dict[str, List[str]]) -> Dict[str, Any]:
         """
         Fetch today's EOD data for multiple securities
+        
+        WARNING: This method has NO internal rate limiting.
+        Use DistributedRateLimitedDhanClient for proper coordination.
         
         Args:
             securities_by_segment: Dict mapping exchange segments to security ID lists
@@ -162,9 +162,6 @@ class DhanAPIClient:
             logger.info(f"Successfully fetched today EOD data for {total_received} securities")
             return data
 
-        except RateLimitError:
-            logger.warning(f"Rate limit hit, retrying today EOD fetch")
-            raise
         except Exception as e:
             logger.error(f"Failed to fetch today EOD data: {e}")
             raise
@@ -172,6 +169,8 @@ class DhanAPIClient:
     def test_connection(self) -> bool:
         """
         Test API connection and authentication
+        
+        WARNING: This method has NO internal rate limiting.
         
         Returns:
             True if connection successful, False otherwise
@@ -190,11 +189,9 @@ class DhanAPIClient:
 
     def get_rate_limit_info(self) -> Dict[str, Any]:
         """
-        Get current rate limit information (if available in headers)
+        Get rate limit information - now returns warning
         
         Returns:
-            Dict containing rate limit info
+            Dict with warning about external rate limiting
         """
-        # Note: Dhan API might not provide rate limit headers
-        # This is a placeholder for future implementation
-        return {"requests_per_second": 20, "daily_limit": 100000, "current_usage": "unknown"}
+        return {"warning": "Internal rate limiting disabled", "message": "Use DistributedRateLimitedDhanClient for proper rate limiting", "requests_per_second": "Handled externally", "daily_limit": "Handled externally", "current_usage": "Unknown"}
