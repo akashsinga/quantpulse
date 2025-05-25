@@ -12,6 +12,7 @@ from app.services.weekly_aggregator import WeeklyDataAggregator
 from app.api.deps import get_current_user, get_current_superadmin
 from app.db.models.user import User
 from app.db.models.security import Security
+from app.db.session import get_db_session
 from app.utils.logger import get_logger
 
 # Initialize router
@@ -83,7 +84,7 @@ async def start_historical_fetch(request: HistoricalOHLCVRequest, background_tas
             # Get securities to process
             if request.security_ids:
                 security_uuids = [uuid.UUID(sid) for sid in request.security_ids]
-                with fetcher.db.session() as db:
+                with get_db_session() as db:
                     securities = db.query(Security).filter(Security.id.in_(security_uuids)).all()
             else:
                 securities = fetcher.get_pending_securities('historical')
@@ -127,7 +128,7 @@ async def start_daily_fetch(request: DailyOHLCVRequest, background_tasks: Backgr
 
             if request.security_ids:
                 security_uuids = [uuid.UUID(sid) for sid in request.security_ids]
-                with fetcher.db.session() as db:
+                with get_db_session() as db:
                     securities = db.query(Security).filter(Security.id.in_(security_uuids)).all()
             else:
                 securities = fetcher.get_pending_securities('daily')

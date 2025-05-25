@@ -7,7 +7,7 @@ from sqlalchemy import and_, text
 from sqlalchemy.dialects.postgresql import insert
 import uuid
 
-from app.db.session import get_db_session
+from app.db.session import get_db
 from app.db.models.security import Security
 from app.db.models.ohlcv_daily import OHLCVDaily
 from app.db.models.ohlcv_progress import OHLCVProgress
@@ -158,7 +158,7 @@ class OHLCVFetcher:
         if not records:
             return 0
 
-        with get_db_session() as db:
+        with get_db() as db:
             try:
                 # Use PostgreSQL's ON CONFLICT for upsert
                 stmt = insert(OHLCVDaily).values(records)
@@ -190,7 +190,7 @@ class OHLCVFetcher:
         if security_types is None:
             security_types = ['STOCK', 'INDEX']
 
-        with get_db_session() as db:
+        with get_db() as db:
             securities = db.query(Security).filter(and_(Security.is_active == True, Security.security_type.in_(security_types))).all()
 
             logger.info(f"Found {len(securities)} active securities")
@@ -206,7 +206,7 @@ class OHLCVFetcher:
         Returns:
             List of Securities that need processing
         """
-        with get_db_session() as db:
+        with get_db() as db:
             if operation_type == 'historical':
                 # Securities that don't have progress record or failed historical fetch
                 securities = db.query(Security).outerjoin(OHLCVProgress, Security.id == OHLCVProgress.security_id).filter(and_(Security.is_active == True, Security.security_type.in_(['STOCK', 'INDEX']), (OHLCVProgress.last_historical_fetch.is_(None) | (OHLCVProgress.status == 'failed')))).all()
@@ -228,7 +228,7 @@ class OHLCVFetcher:
             status: 'success', 'failed', 'in_progress'
             error_message: Error message if failed
         """
-        with get_db_session() as db:
+        with get_db() as db:
             try:
                 # Get or create progress record
                 progress = db.query(OHLCVProgress).filter(OHLCVProgress.security_id == security_id).first()
@@ -267,7 +267,7 @@ class OHLCVFetcher:
         Returns:
             Dict with progress statistics
         """
-        with get_db_session() as db:
+        with get_db() as db:
             total_securities = db.query(Security).filter(and_(Security.is_active == True, Security.security_type.in_(['STOCK', 'INDEX']))).count()
 
             # Historical progress

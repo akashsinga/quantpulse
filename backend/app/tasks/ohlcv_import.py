@@ -10,6 +10,7 @@ from app.services.data_fetchers.ohlcv_fetcher import create_ohlcv_fetcher
 from app.services.weekly_aggregator import WeeklyDataAggregator
 from app.utils.logger import get_logger
 from app.db.models.security import Security
+from app.db.session import get_db
 from sqlalchemy import and_
 
 logger = get_logger(__name__)
@@ -50,7 +51,7 @@ def fetch_historical_ohlcv_task(self, security_ids: Optional[List[str]] = None, 
 
         if security_ids:
             # Process specific securities
-            with fetcher.db.session() as db:
+            with get_db() as db:
                 securities = db.query(Security).filter(Security.id.in_(security_ids)).all()
         else:
             # Get all pending securities
@@ -157,7 +158,7 @@ def fetch_daily_ohlcv_task(self, security_ids: Optional[List[str]] = None) -> Di
         self.update_state(state='PROGRESS', meta={'status': 'Getting securities list...', 'progress': 20})
 
         if security_ids:
-            with fetcher.db.session() as db:
+            with get_db() as db:
                 securities = db.query(Security).filter(Security.id.in_(security_ids)).all()
         else:
             securities = fetcher.get_pending_securities('daily')

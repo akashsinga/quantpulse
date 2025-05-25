@@ -7,7 +7,7 @@ from sqlalchemy import and_, text, func
 from sqlalchemy.dialects.postgresql import insert
 import uuid
 
-from app.db.session import get_db_session
+from app.db.session import get_db
 from app.db.models.security import Security
 from app.db.models.ohlcv_daily import OHLCVDaily
 from app.db.models.ohlcv_weekly import OHLCVWeekly
@@ -40,7 +40,7 @@ class WeeklyDataAggregator:
         start_time = datetime.now()
 
         try:
-            with get_db_session() as db:
+            with get_db() as db:
                 # Get securities to process
                 if security_ids:
                     securities = db.query(Security).filter(and_(Security.id.in_(security_ids), Security.is_active == True, Security.security_type.in_(['STOCK', 'INDEX']))).all()
@@ -222,7 +222,7 @@ class WeeklyDataAggregator:
             Dict with generation results
         """
         try:
-            with get_db_session() as db:
+            with get_db() as db:
                 weekly_periods = self._get_weekly_periods(start_date, end_date)
                 records = self._generate_weekly_for_security(db, security_id, weekly_periods)
 
@@ -244,7 +244,7 @@ class WeeklyDataAggregator:
             Dict with weekly data statistics
         """
         try:
-            with get_db_session() as db:
+            with get_db() as db:
                 # Count securities with weekly data
                 securities_with_weekly = db.query(func.count(func.distinct(OHLCVWeekly.security_id))).scalar()
 
@@ -276,7 +276,7 @@ class WeeklyDataAggregator:
         try:
             cutoff_date = date.today() - timedelta(days=days_to_keep)
 
-            with get_db_session() as db:
+            with get_db() as db:
                 # Count records to be deleted
                 count_query = db.query(func.count(OHLCVWeekly.time)).filter(OHLCVWeekly.time < datetime.combine(cutoff_date, datetime.min.time()))
                 records_to_delete = count_query.scalar()
