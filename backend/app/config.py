@@ -53,9 +53,9 @@ class Settings(BaseSettings):
     OHLCV_WORKERS: int = int(os.getenv("OHLCV_WORKERS", "16"))
     OHLCV_BATCH_SIZE: int = int(os.getenv("OHLCV_BATCH_SIZE", "200"))
     OHLCV_MAX_CONCURRENT: int = int(os.getenv("OHLCV_MAX_CONCURRENT", "50"))
-    OHLCV_REQUEST_DELAY: float = float(os.getenv("OHLCV_REQUEST_DELAY", "0.05"))  # 20 req/sec = 0.05s delay
+    OHLCV_REQUEST_DELAY: float = float(os.getenv("OHLCV_REQUEST_DELAY", "0.02"))  # 20 req/sec = 0.05s delay
     OHLCV_MAX_RETRIES: int = int(os.getenv("OHLCV_MAX_RETRIES", "3"))
-    OHLCV_BULK_INSERT_SIZE: int = int(os.getenv("OHLCV_BULK_INSERT_SIZE", "1000"))
+    OHLCV_BULK_INSERT_SIZE: int = int(os.getenv("OHLCV_BULK_INSERT_SIZE", "5000"))
     OHLCV_CACHE_SIZE: int = int(os.getenv("OHLCV_CACHE_SIZE", "10000"))
     OHLCV_MEMORY_CHECK_INTERVAL: int = int(os.getenv("OHLCV_MEMORY_CHECK_INTERVAL", "100"))
     OHLCV_BATCH_SIZE_TODAY: int = int(os.getenv("OHLCV_BATCH_SIZE_TODAY", "200"))  # Securities per today request
@@ -74,7 +74,7 @@ class Settings(BaseSettings):
     CACHE_DIR: str = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "cache")
 
     # Logging
-    LOG_LEVEL: str = os.getenv("LOG_LEVEL", "DEBUG")
+    LOG_LEVEL: str = os.getenv("LOG_LEVEL", "INFO")
 
     # Timezone
     INDIA_TZ: timezone = timezone(timedelta(hours=5, minutes=30))
@@ -84,8 +84,8 @@ class Settings(BaseSettings):
     ATTEMPT_WINDOW: int = 60  # seconds
 
     # Database pool settings - Enhanced
-    DB_POOL_SIZE: int = int(os.getenv("DB_POOL_SIZE", "20"))
-    DB_MAX_OVERFLOW: int = int(os.getenv("DB_MAX_OVERFLOW", "20"))
+    DB_POOL_SIZE: int = int(os.getenv("DB_POOL_SIZE", "50"))
+    DB_MAX_OVERFLOW: int = int(os.getenv("DB_MAX_OVERFLOW", "50"))
     DB_POOL_TIMEOUT: int = int(os.getenv("DB_POOL_TIMEOUT", "30"))
     DB_POOL_RECYCLE: int = int(os.getenv("DB_POOL_RECYCLE", "1800"))  # 30 minutes
     DB_ECHO: bool = os.getenv("SQL_ECHO", "False").lower() == "true"

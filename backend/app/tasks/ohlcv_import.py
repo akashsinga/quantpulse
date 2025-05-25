@@ -17,7 +17,7 @@ logger = get_logger(__name__)
 
 
 @celery_app.task(bind=True, name="fetch_historical_ohlcv")
-def fetch_historical_ohlcv_task(self, security_ids: Optional[List[str]] = None, from_date: str = "2000-01-01", to_date: Optional[str] = None, batch_size: int = 50) -> Dict[str, Any]:
+def fetch_historical_ohlcv_task(self, security_ids: Optional[List[str]] = None, from_date: str = "2000-01-01", to_date: Optional[str] = None, batch_size: int = 100) -> Dict[str, Any]:
     """
     Celery task to fetch historical OHLCV data
     
@@ -230,9 +230,17 @@ def generate_weekly_ohlcv_task(self, security_ids: Optional[List[str]] = None, w
         self.update_state(state='PROGRESS', meta={'status': 'Getting securities list...', 'progress': 10})
 
         if security_ids:
-            security_uuids = [uuid.UUID(sid) for sid in security_ids]
+            try:
+                # Handle case where security_ids might be a dict or other type
+                if isinstance(security_ids, dict):
+                    security_uuids = None  # Process all if invalid format
+                else:
+                    security_uuids = [uuid.UUID(str(sid)) for sid in security_ids if sid]
+            except (ValueError, TypeError) as e:
+                logger.warning(f"Invalid security_ids format: {security_ids}, processing all securities")
+                security_uuids = None
         else:
-            security_uuids = None  # Process all
+            security_uuids = None
 
         # Generate weekly data
         self.update_state(state='PROGRESS', meta={'status': 'Generating weekly data...', 'progress': 30})
@@ -332,7 +340,7 @@ def full_ohlcv_import_task(from_date: str = "2000-01-01") -> Dict[str, Any]:
 
     try:
         # Chain: Historical fetch -> Weekly aggregation
-        workflow = chain(fetch_historical_ohlcv_task.s(from_date=from_date), generate_weekly_ohlcv_task.s())
+        workflow = chain(fetch_historical_ohlcv_task.s(from_date=from_date), generate_weekly_ohlcv_task.si(security_ids=None, weeks_back=1500))
 
         result = workflow.apply_async()
 

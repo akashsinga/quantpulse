@@ -35,7 +35,7 @@ services:
     volumes:
       - ./backend:/app
       - ./.env:/app/.env
-    command: celery -A app.core.celery_app:celery_app worker --loglevel=info --concurrency=2
+    command: celery -A app.core.celery_app:celery_app worker --loglevel=info --concurrency=16
 
   # Your FastAPI Application
   api:
