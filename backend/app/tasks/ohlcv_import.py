@@ -1,10 +1,11 @@
-# app/tasks/ohlcv_import.py - FIXED to remove problematic task
+# app/tasks/ohlcv_import.py - FIXED to use sequential processing
 
 from typing import Dict, List, Any, Optional
 from datetime import datetime, date, timedelta
 from celery import group, chain, chord
 import uuid
 import math
+import time
 
 from app.core.celery_app import celery_app
 from app.services.data_fetchers.ohlcv_fetcher import create_ohlcv_fetcher
@@ -21,19 +22,19 @@ logger = get_logger(__name__)
 @celery_app.task(bind=True, name="fetch_historical_ohlcv")
 def fetch_historical_ohlcv_task(self, security_ids: Optional[List[str]] = None, from_date: str = "2000-01-01", to_date: Optional[str] = None, batch_size: int = 500) -> Dict[str, Any]:
     """
-    HIGH-PERFORMANCE Celery task to fetch historical OHLCV data
-    Uses distributed rate limiting to prevent API issues
+    FIXED Celery task to fetch historical OHLCV data SEQUENTIALLY
+    No more concurrency issues or rate limiting problems
     """
     task_id = self.request.id
     start_time = datetime.now()
 
-    logger.info(f"Starting distributed historical OHLCV fetch task {task_id}")
+    logger.info(f"Starting SEQUENTIAL historical OHLCV fetch task {task_id}")
 
     # Update task state
-    self.update_state(state='PROGRESS', meta={'status': 'Initializing distributed fetcher...', 'progress': 0})
+    self.update_state(state='PROGRESS', meta={'status': 'Initializing sequential fetcher...', 'progress': 0})
 
     try:
-        # Create distributed fetcher
+        # Create SEQUENTIAL fetcher
         fetcher = create_ohlcv_fetcher()
 
         # Test API connection first
@@ -57,33 +58,34 @@ def fetch_historical_ohlcv_task(self, security_ids: Optional[List[str]] = None, 
             return {'status': 'SUCCESS', 'message': 'No securities to process', 'processed': 0, 'successful': 0, 'failed': 0}
 
         total_securities = len(securities)
-        logger.info(f"Processing {total_securities} securities with distributed parallel fetcher")
+        logger.info(f"Processing {total_securities} securities with SEQUENTIAL fetcher")
 
         # Progress callback to update task state
         def update_progress(progress_pct):
             self.update_state(
                 state='PROGRESS',
                 meta={
-                    'status': f'Distributed parallel fetch... {progress_pct}%',
+                    'status': f'Sequential processing... {progress_pct}%',
                     'progress': 15 + int(progress_pct * 0.8),  # 15% to 95%
-                    'stats': fetcher.get_performance_stats()
+                    'current_securities': total_securities,
+                    'method': 'sequential_safe'
                 })
 
-        # Use the distributed parallel fetcher
-        self.update_state(state='PROGRESS', meta={'status': 'Starting distributed parallel processing...', 'progress': 15})
+        # Use the SEQUENTIAL fetcher (no concurrency issues)
+        self.update_state(state='PROGRESS', meta={'status': 'Starting sequential processing...', 'progress': 15})
 
-        result = fetcher.fetch_historical_data_parallel(securities=securities, from_date=from_date, to_date=to_date, progress_callback=update_progress)
+        result = fetcher.fetch_historical_data_sequential(securities=securities, from_date=from_date, to_date=to_date, progress_callback=update_progress)
 
         # Final progress update
         duration = (datetime.now() - start_time).total_seconds()
 
-        final_result = {'status': 'SUCCESS', 'task_id': task_id, 'duration_seconds': round(duration, 2), 'duration_minutes': round(duration / 60, 2), **result, 'method': 'distributed_parallel_fetch'}
+        final_result = {'status': 'SUCCESS', 'task_id': task_id, 'duration_seconds': round(duration, 2), 'duration_minutes': round(duration / 60, 2), **result, 'method': 'sequential_safe'}
 
-        logger.info(f"Distributed historical OHLCV fetch completed: {final_result}")
+        logger.info(f"Sequential historical OHLCV fetch completed: {final_result}")
         return final_result
 
     except Exception as e:
-        error_msg = f"Distributed historical OHLCV fetch failed: {str(e)}"
+        error_msg = f"Sequential historical OHLCV fetch failed: {str(e)}"
         logger.error(error_msg, exc_info=True)
         self.update_state(state='FAILURE', meta={'error': error_msg})
         raise
@@ -92,14 +94,14 @@ def fetch_historical_ohlcv_task(self, security_ids: Optional[List[str]] = None, 
 @celery_app.task(bind=True, name="fetch_daily_ohlcv")
 def fetch_daily_ohlcv_task(self, security_ids: Optional[List[str]] = None) -> Dict[str, Any]:
     """
-    HIGH-PERFORMANCE Celery task to fetch daily OHLCV data (today's data)
+    FIXED Celery task to fetch daily OHLCV data SEQUENTIALLY
     """
     task_id = self.request.id
     start_time = datetime.now()
 
-    logger.info(f"Starting distributed daily OHLCV fetch task {task_id}")
+    logger.info(f"Starting SEQUENTIAL daily OHLCV fetch task {task_id}")
 
-    self.update_state(state='PROGRESS', meta={'status': 'Initializing distributed daily fetch...', 'progress': 0})
+    self.update_state(state='PROGRESS', meta={'status': 'Initializing sequential daily fetch...', 'progress': 0})
 
     try:
         fetcher = create_ohlcv_fetcher()
@@ -122,11 +124,11 @@ def fetch_daily_ohlcv_task(self, security_ids: Optional[List[str]] = None) -> Di
         if not securities:
             return {'status': 'SUCCESS', 'message': 'No securities need daily updates', 'processed': 0, 'inserted': 0}
 
-        logger.info(f"Processing {len(securities)} securities for daily data with distributed fetcher")
+        logger.info(f"Processing {len(securities)} securities for daily data with SEQUENTIAL fetcher")
 
-        # Use distributed EOD data fetching
-        self.update_state(state='PROGRESS', meta={'status': 'Fetching today\'s data with distributed coordination...', 'progress': 50})
-        result = fetcher.fetch_today_eod_data_optimized(securities)
+        # Use sequential EOD data fetching
+        self.update_state(state='PROGRESS', meta={'status': 'Fetching today\'s data sequentially...', 'progress': 50})
+        result = fetcher.fetch_today_eod_data_sequential(securities)
 
         # Update progress based on results
         self.update_state(state='PROGRESS', meta={'status': 'Updating progress...', 'progress': 80})
@@ -144,13 +146,13 @@ def fetch_daily_ohlcv_task(self, security_ids: Optional[List[str]] = None) -> Di
 
         duration = (datetime.now() - start_time).total_seconds()
 
-        final_result = {'status': 'SUCCESS', 'task_id': task_id, 'duration_seconds': round(duration, 2), 'total_securities': len(securities), **result, 'method': 'distributed_eod'}
+        final_result = {'status': 'SUCCESS', 'task_id': task_id, 'duration_seconds': round(duration, 2), 'total_securities': len(securities), **result, 'method': 'sequential_safe'}
 
-        logger.info(f"Distributed daily OHLCV fetch completed: {final_result}")
+        logger.info(f"Sequential daily OHLCV fetch completed: {final_result}")
         return final_result
 
     except Exception as e:
-        error_msg = f"Distributed daily OHLCV fetch failed: {str(e)}"
+        error_msg = f"Sequential daily OHLCV fetch failed: {str(e)}"
         logger.error(error_msg, exc_info=True)
         self.update_state(state='FAILURE', meta={'error': error_msg})
         raise
@@ -213,10 +215,10 @@ def generate_weekly_ohlcv_task(self, security_ids: Optional[List[str]] = None, w
 @celery_app.task(bind=True, name="cleanup_failed_ohlcv_fetches")
 def cleanup_failed_ohlcv_fetches_task(self, max_retries: int = 3) -> Dict[str, Any]:
     """
-    Cleanup and retry failed OHLCV fetches
+    Cleanup and retry failed OHLCV fetches using SEQUENTIAL processing
     """
     task_id = self.request.id
-    logger.info(f"Starting OHLCV cleanup task {task_id}")
+    logger.info(f"Starting SEQUENTIAL OHLCV cleanup task {task_id}")
 
     try:
         from app.db.models.ohlcv_progress import OHLCVProgress
@@ -245,10 +247,10 @@ def cleanup_failed_ohlcv_fetches_task(self, max_retries: int = 3) -> Dict[str, A
                 security_ids.extend(batch_security_ids)
                 db.commit()
 
-            # Start a new historical fetch task for the failed securities
+            # Start a new SEQUENTIAL historical fetch task for the failed securities
             retry_task = fetch_historical_ohlcv_task.delay(security_ids=security_ids)
 
-            return {'status': 'SUCCESS', 'retried_count': len(security_ids), 'retry_task_id': retry_task.id, 'method': 'distributed_retry', 'message': f'Queued {len(security_ids)} securities for retry'}
+            return {'status': 'SUCCESS', 'retried_count': len(security_ids), 'retry_task_id': retry_task.id, 'method': 'sequential_retry', 'message': f'Queued {len(security_ids)} securities for sequential retry'}
 
     except Exception as e:
         error_msg = f"OHLCV cleanup failed: {str(e)}"
@@ -259,9 +261,9 @@ def cleanup_failed_ohlcv_fetches_task(self, max_retries: int = 3) -> Dict[str, A
 @celery_app.task(name="daily_ohlcv_automation")
 def daily_ohlcv_automation_task() -> Dict[str, Any]:
     """
-    Daily automation task for OHLCV data updates
+    Daily automation task for OHLCV data updates using SEQUENTIAL processing
     """
-    logger.info("Starting daily OHLCV automation")
+    logger.info("Starting daily OHLCV automation with SEQUENTIAL processing")
 
     try:
         # Chain: Daily fetch -> Incremental weekly aggregation (only recent weeks)
@@ -272,7 +274,7 @@ def daily_ohlcv_automation_task() -> Dict[str, Any]:
 
         result = workflow.apply_async()
 
-        return {'status': 'SUCCESS', 'workflow_id': result.id, 'message': 'Daily automation workflow started'}
+        return {'status': 'SUCCESS', 'workflow_id': result.id, 'message': 'Daily automation workflow started with SEQUENTIAL processing'}
 
     except Exception as e:
         error_msg = f"Daily automation failed: {str(e)}"
@@ -283,9 +285,9 @@ def daily_ohlcv_automation_task() -> Dict[str, Any]:
 @celery_app.task(name="full_ohlcv_import")
 def full_ohlcv_import_task(from_date: str = "2000-01-01") -> Dict[str, Any]:
     """
-    Complete OHLCV import workflow - SIMPLIFIED to avoid Celery deadlocks
+    Complete OHLCV import workflow using SEQUENTIAL processing
     """
-    logger.info("Starting full OHLCV import workflow")
+    logger.info("Starting full OHLCV import workflow with SEQUENTIAL processing")
 
     try:
         # Sequential workflow to avoid deadlocks
@@ -296,7 +298,7 @@ def full_ohlcv_import_task(from_date: str = "2000-01-01") -> Dict[str, Any]:
 
         result = workflow.apply_async()
 
-        return {'status': 'SUCCESS', 'workflow_id': result.id, 'message': 'Full import workflow started - sequential processing to avoid deadlocks', 'estimated_completion_time': '20-30 minutes for 25 years of data'}
+        return {'status': 'SUCCESS', 'workflow_id': result.id, 'message': 'Full import workflow started - SEQUENTIAL processing for reliability', 'estimated_completion_time': '45-60 minutes for 25 years of data (sequential processing)', 'method': 'sequential_safe'}
 
     except Exception as e:
         error_msg = f"Full import workflow failed: {str(e)}"
@@ -329,16 +331,61 @@ def setup_continuous_aggregates_task(previous_result: Dict[str, Any] = None) -> 
         return {'status': 'FAILED', 'error': error_msg}
 
 
-# Benchmark task for testing performance
-@celery_app.task(bind=True, name="benchmark_ohlcv_import")
-def benchmark_ohlcv_import_task(self, num_securities: int = 100, from_date: str = "2020-01-01") -> Dict[str, Any]:
+# Test task for debugging rate limiting
+@celery_app.task(bind=True, name="test_rate_limiting")
+def test_rate_limiting_task(self, num_requests: int = 10) -> Dict[str, Any]:
     """
-    Benchmark task to test the distributed performance
+    Test task to verify rate limiting is working correctly
     """
     task_id = self.request.id
     start_time = datetime.now()
 
-    logger.info(f"Starting OHLCV import benchmark task {task_id}")
+    logger.info(f"Starting rate limiting test task {task_id} with {num_requests} requests")
+
+    try:
+        fetcher = create_ohlcv_fetcher()
+
+        # Test rate limiter status
+        status = fetcher.get_rate_limit_status()
+        logger.info(f"Rate limiter status: {status}")
+
+        # Test API connection multiple times
+        results = []
+        for i in range(num_requests):
+            self.update_state(state='PROGRESS', meta={'status': f'Testing request {i+1}/{num_requests}', 'progress': int((i / num_requests) * 100), 'rate_limiter_status': status})
+
+            request_start = time.time()
+            success = fetcher.test_api_connection()
+            request_duration = time.time() - request_start
+
+            results.append({'request_number': i + 1, 'success': success, 'duration_seconds': round(request_duration, 3), 'timestamp': datetime.now().isoformat()})
+
+            logger.info(f"Request {i+1}: {'SUCCESS' if success else 'FAILED'} in {request_duration:.3f}s")
+
+        duration = (datetime.now() - start_time).total_seconds()
+
+        final_result = {'status': 'SUCCESS', 'task_id': task_id, 'total_requests': num_requests, 'successful_requests': sum(1 for r in results if r['success']), 'failed_requests': sum(1 for r in results if not r['success']), 'duration_seconds': round(duration, 2), 'average_request_duration': round(sum(r['duration_seconds'] for r in results) / len(results), 3), 'requests': results, 'rate_limiter_final_status': fetcher.get_rate_limit_status(), 'method': 'sequential_test'}
+
+        logger.info(f"Rate limiting test completed: {final_result}")
+        return final_result
+
+    except Exception as e:
+        error_msg = f"Rate limiting test failed: {str(e)}"
+        logger.error(error_msg, exc_info=True)
+        self.update_state(state='FAILURE', meta={'error': error_msg})
+        raise
+
+
+# Benchmark task for testing performance
+@celery_app.task(bind=True, name="benchmark_ohlcv_import")
+def benchmark_ohlcv_import_task(self, num_securities: int = 10, from_date: str = "2024-01-01") -> Dict[str, Any]:
+    """
+    Benchmark task to test the SEQUENTIAL performance
+    """
+    task_id = self.request.id
+    start_time = datetime.now()
+
+    logger.info(f"Starting SEQUENTIAL OHLCV import benchmark task {task_id}")
     logger.info(f"Benchmark: {num_securities} securities from {from_date}")
 
     try:
@@ -351,10 +398,10 @@ def benchmark_ohlcv_import_task(self, num_securities: int = 100, from_date: str 
         if not securities:
             return {'status': 'FAILED', 'error': 'No securities found for benchmark'}
 
-        logger.info(f"Benchmarking with {len(securities)} securities")
+        logger.info(f"Benchmarking with {len(securities)} securities using SEQUENTIAL processing")
 
-        # Run the distributed import
-        result = fetcher.fetch_historical_data_parallel(securities=securities, from_date=from_date, to_date=None, progress_callback=lambda p: self.update_state(state='PROGRESS', meta={'status': f'Benchmarking... {p}%', 'progress': p}))
+        # Run the sequential import
+        result = fetcher.fetch_historical_data_sequential(securities=securities, from_date=from_date, to_date=None, progress_callback=lambda p: self.update_state(state='PROGRESS', meta={'status': f'Benchmarking... {p}%', 'progress': p, 'method': 'sequential_benchmark'}))
 
         duration = (datetime.now() - start_time).total_seconds()
 
@@ -373,15 +420,15 @@ def benchmark_ohlcv_import_task(self, num_securities: int = 100, from_date: str 
                 'securities_per_minute': round(securities_per_minute, 2),
                 'records_per_second': round(records_per_second, 2),
                 'estimated_time_for_3000_securities': f"{(3000 / securities_per_minute):.1f} minutes",
-                'method': 'distributed_coordinated'
+                'method': 'sequential_coordinated'
             }
         }
 
-        logger.info(f"🚀 BENCHMARK RESULTS: {benchmark_result}")
+        logger.info(f"🚀 SEQUENTIAL BENCHMARK RESULTS: {benchmark_result}")
         return benchmark_result
 
     except Exception as e:
-        error_msg = f"Benchmark failed: {str(e)}"
+        error_msg = f"Sequential benchmark failed: {str(e)}"
         logger.error(error_msg, exc_info=True)
         self.update_state(state='FAILURE', meta={'error': error_msg})
         raise

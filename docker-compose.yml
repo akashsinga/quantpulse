@@ -12,7 +12,7 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
 
-  # Redis for Celery
+  # Redis for Celery and Rate Limiting
   redis:
     image: redis:7-alpine
     container_name: quantpulse-redis
@@ -20,9 +20,9 @@ services:
       - "6379:6379"
     volumes:
       - redis_data:/data
-    command: redis-server --appendonly yes
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
 
-  # Single Celery Worker (simplified) - HANDLES ALL QUEUES
+  # SINGLE Celery Worker - SEQUENTIAL PROCESSING ONLY
   celery-worker:
     build: .
     container_name: quantpulse-celery-worker
@@ -30,13 +30,18 @@ services:
       - DATABASE_URL=postgresql+psycopg2://postgres:password@postgres:5432/quantpulse
       - REDIS_URL=redis://redis:6379/0
       - PYTHONPATH=/app
+      - OHLCV_WORKERS=1
+      - OHLCV_HISTORICAL_WORKERS=1
+      - CELERY_WORKER_CONCURRENCY=2
+      - CELERY_WORKER_PREFETCH_MULTIPLIER=1
     depends_on:
       - postgres
       - redis
     volumes:
       - ./backend:/app
     working_dir: /app
-    command: celery -A app.core.celery_app worker --loglevel=info --concurrency=8 --queues=default,import,data_fetch,aggregation,maintenance --without-gossip --without-mingle
+    # CRITICAL: Only 2 concurrent tasks, prefetch 1, sequential processing
+    command: celery -A app.core.celery_app worker --loglevel=info --concurrency=2 --prefetch-multiplier=1 --queues=default,import,data_fetch,aggregation,maintenance --without-gossip --without-mingle --without-heartbeat
     restart: unless-stopped
 
   # FastAPI Application
