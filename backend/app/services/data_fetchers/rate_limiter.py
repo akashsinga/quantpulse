@@ -51,7 +51,7 @@ class SimpleRedisRateLimiter:
         start_time = time.time()
         client_id = client_id or f"worker_{id(self)}"
 
-        logger.info(f"[SIMPLE_RATE_LIMIT] {client_id} requesting {tokens} tokens")
+        logger.debug(f"[SIMPLE_RATE_LIMIT] {client_id} requesting {tokens} tokens")
 
         while True:
             try:
@@ -81,7 +81,7 @@ class SimpleRedisRateLimiter:
                         self.redis_client.expire(self.stats_key, 3600)
 
                         duration = time.time() - start_time
-                        logger.info(f"[SIMPLE_RATE_LIMIT] ✅ {client_id} acquired {tokens} tokens in {duration:.3f}s")
+                        logger.debug(f"[SIMPLE_RATE_LIMIT] ✅ {client_id} acquired {tokens} tokens in {duration:.3f}s")
                         return True
 
                 # Check timeout
@@ -94,7 +94,7 @@ class SimpleRedisRateLimiter:
 
                 # Calculate wait time
                 wait_time = max(0.1, self.min_interval - time_since_last + 0.1)  # Add 100ms buffer
-                logger.info(f"[SIMPLE_RATE_LIMIT] 🔄 {client_id} waiting {wait_time:.2f}s")
+                logger.debug(f"[SIMPLE_RATE_LIMIT] 🔄 {client_id} waiting {wait_time:.2f}s")
                 time.sleep(wait_time)
 
             except redis.RedisError as e:

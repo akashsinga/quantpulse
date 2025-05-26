@@ -57,7 +57,7 @@ class SimpleRateLimitedDhanClient:
         """Execute API method with SIMPLE rate limiting - FIXED VERSION"""
         start_time = time.time()
 
-        logger.info(f"[{self.client_id}] Requesting rate limit permission for {operation}")
+        logger.debug(f"[{self.client_id}] Requesting rate limit permission for {operation}")
 
         # CRITICAL FIX: Always acquire rate limit permission first
         if not self.rate_limiter.acquire(tokens=1, timeout=120.0, client_id=self.client_id):
@@ -65,7 +65,7 @@ class SimpleRateLimitedDhanClient:
             logger.error(f"[{self.client_id}] {error_msg}")
             raise Exception(error_msg)  # Don't convert to custom exceptions
 
-        logger.info(f"[{self.client_id}] Rate limit permission GRANTED for {operation}")
+        logger.debug(f"[{self.client_id}] Rate limit permission GRANTED for {operation}")
 
         try:
             # Execute the API call
