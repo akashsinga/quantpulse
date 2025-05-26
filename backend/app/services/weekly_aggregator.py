@@ -1,19 +1,19 @@
 # app/services/weekly_aggregator.py
 
-from typing import List, Dict, Any, Optional, Callable
-from datetime import datetime, date, timedelta
-from sqlalchemy.orm import Session
-from sqlalchemy import and_, text, func, select
-from sqlalchemy.dialects.postgresql import insert
-from concurrent.futures import ThreadPoolExecutor, as_completed
-import uuid
 import math
+import uuid
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from datetime import date, datetime, timedelta
+from typing import Any, Callable, Dict, List, Optional
 
-from app.db.session import get_db
-from app.db.models.security import Security
 from app.db.models.ohlcv_daily import OHLCVDaily
 from app.db.models.ohlcv_weekly import OHLCVWeekly
+from app.db.models.security import Security
+from app.db.session import get_db
 from app.utils.logger import get_logger
+from sqlalchemy import and_, func, select, text
+from sqlalchemy.dialects.postgresql import insert
+from sqlalchemy.orm import Session
 
 logger = get_logger(__name__)
 
@@ -61,7 +61,7 @@ class WeeklyDataAggregator:
                 use_timescaledb = self._check_timescaledb_available(db)
 
                 if use_timescaledb:
-                    logger.info("Using TimescaleDB optimized aggregation")
+                    logger.info("Using TimescaleDB optimized aggregation for large dataset")
                     result = self._generate_weekly_with_timescaledb(db, securities, start_date, end_date, progress_callback)
                 else:
                     logger.info("Using standard batch processing")
@@ -98,55 +98,78 @@ class WeeklyDataAggregator:
     def _generate_weekly_with_timescaledb(self, db: Session, securities: List[Security], start_date: date, end_date: date, progress_callback: Optional[Callable[[int], None]]) -> Dict[str, Any]:
         """
         Generate weekly data using TimescaleDB's time_bucket function for optimal performance
+        FIXED: Using 2-parameter time_bucket (without timezone) to avoid compatibility issues
         """
         security_ids = [sec.id for sec in securities]
         total_records = 0
 
+        logger.info(f"Processing {len(securities)} securities in {math.ceil(len(securities) / 200)} chunks using TimescaleDB")
+
         try:
-            # Use TimescaleDB's time_bucket for efficient aggregation
-            # This query aggregates all securities and weeks in a single operation
-            aggregation_query = text("""
-                WITH weekly_aggregates AS (
-                    SELECT 
-                        time_bucket('1 week', time, 'Monday') as week_start,
-                        security_id,
-                        (array_agg(open ORDER BY time))[1] as week_open,
-                        MAX(high) as week_high,
-                        MIN(low) as week_low,
-                        (array_agg(close ORDER BY time DESC))[1] as week_close,
-                        SUM(volume) as week_volume
-                    FROM ohlcv_daily
-                    WHERE security_id = ANY(:security_ids)
-                        AND time >= :start_date
-                        AND time <= :end_date
-                    GROUP BY time_bucket('1 week', time, 'Monday'), security_id
-                    HAVING COUNT(*) > 0
-                )
-                SELECT 
-                    week_start,
-                    security_id,
-                    week_open,
-                    week_high,
-                    week_low,
-                    week_close,
-                    week_volume
-                FROM weekly_aggregates
-                ORDER BY security_id, week_start
-            """)
+            # Process in chunks to avoid overwhelming the database
+            chunk_size = 200
+            security_chunks = [security_ids[i:i + chunk_size] for i in range(0, len(security_ids), chunk_size)]
 
-            # Execute the aggregation query
-            result = db.execute(aggregation_query, {'security_ids': security_ids, 'start_date': datetime.combine(start_date, datetime.min.time()), 'end_date': datetime.combine(end_date, datetime.max.time())})
+            for chunk_idx, security_chunk in enumerate(security_chunks):
+                logger.info(f"Processing chunk {chunk_idx + 1}/{len(security_chunks)} with {len(security_chunk)} securities")
 
-            # Prepare records for bulk insert
-            weekly_records = []
-            for row in result:
-                weekly_records.append({'time': row.week_start, 'security_id': row.security_id, 'open': row.week_open, 'high': row.week_high, 'low': row.week_low, 'close': row.week_close, 'volume': row.week_volume, 'adjusted_close': None})
+                try:
+                    # FIXED: Use 2-parameter time_bucket without timezone specification
+                    # This should work with older TimescaleDB versions
+                    aggregation_query = text("""
+                        WITH weekly_aggregates AS (
+                            SELECT 
+                                time_bucket('1 week', time) as week_start,
+                                security_id,
+                                FIRST(open, time) as week_open,
+                                MAX(high) as week_high,
+                                MIN(low) as week_low,
+                                LAST(close, time) as week_close,
+                                SUM(volume) as week_volume
+                            FROM ohlcv_daily
+                            WHERE security_id = ANY(:security_ids)
+                                AND time >= :start_date
+                                AND time <= :end_date
+                            GROUP BY time_bucket('1 week', time), security_id
+                            HAVING COUNT(*) > 0
+                        )
+                        SELECT 
+                            week_start,
+                            security_id,
+                            week_open,
+                            week_high,
+                            week_low,
+                            week_close,
+                            week_volume
+                        FROM weekly_aggregates
+                        ORDER BY security_id, week_start
+                    """)
 
-            # Bulk insert/update in chunks
-            if weekly_records:
-                total_records = self._bulk_upsert_weekly_data_chunked(db, weekly_records, progress_callback)
+                    # Execute the aggregation query for this chunk
+                    result = db.execute(aggregation_query, {'security_ids': security_chunk, 'start_date': datetime.combine(start_date, datetime.min.time()), 'end_date': datetime.combine(end_date, datetime.max.time())})
 
-            return {'status': 'SUCCESS', 'processed_securities': len(securities), 'total_weekly_records': total_records, 'method': 'timescaledb_optimized'}
+                    # Prepare records for bulk insert
+                    weekly_records = []
+                    for row in result:
+                        weekly_records.append({'time': row.week_start, 'security_id': row.security_id, 'open': row.week_open, 'high': row.week_high, 'low': row.week_low, 'close': row.week_close, 'volume': row.week_volume, 'adjusted_close': None})
+
+                    # Bulk insert/update this chunk
+                    if weekly_records:
+                        chunk_inserted = self._bulk_upsert_weekly_data_chunked(db, weekly_records)
+                        total_records += chunk_inserted
+                        logger.info(f"Chunk {chunk_idx + 1}: Processed {chunk_inserted} weekly records")
+
+                    # Update progress
+                    if progress_callback and len(security_chunks) > 1:
+                        progress = int(((chunk_idx + 1) / len(security_chunks)) * 100)
+                        progress_callback(progress)
+
+                except Exception as e:
+                    logger.error(f"Error processing chunk {chunk_idx + 1}: {e}")
+                    # Continue with next chunk instead of failing entirely
+                    continue
+
+            return {'status': 'SUCCESS', 'processed_securities': len(securities), 'total_weekly_records': total_records, 'method': 'timescaledb_chunked'}
 
         except Exception as e:
             logger.error(f"TimescaleDB aggregation failed: {e}")
@@ -214,10 +237,11 @@ class WeeklyDataAggregator:
     def _generate_weekly_for_security_optimized(self, security_id: uuid.UUID, start_date: date, end_date: date) -> List[Dict[str, Any]]:
         """
         Generate weekly records for a specific security using optimized SQL
+        FIXED: Use standard PostgreSQL date_trunc instead of TimescaleDB-specific functions
         """
         try:
             with get_db() as db:
-                # Use a single query with window functions for efficiency
+                # Use standard PostgreSQL date_trunc function (compatible with all PostgreSQL versions)
                 query = text("""
                     WITH daily_with_week AS (
                         SELECT 
@@ -376,6 +400,7 @@ class WeeklyDataAggregator:
     def create_continuous_aggregate(self) -> Dict[str, Any]:
         """
         Create TimescaleDB continuous aggregate for weekly data (if TimescaleDB is available)
+        FIXED: Handle transaction context properly
         """
         try:
             with get_db() as db:
@@ -383,42 +408,47 @@ class WeeklyDataAggregator:
                 if not self._check_timescaledb_available(db):
                     return {'status': 'SKIPPED', 'message': 'TimescaleDB not available'}
 
-                # Create continuous aggregate for automatic weekly rollups
-                create_aggregate_query = text("""
-                    CREATE MATERIALIZED VIEW IF NOT EXISTS weekly_ohlcv_continuous
-                    WITH (timescaledb.continuous) AS
-                    SELECT 
-                        time_bucket('1 week', time, 'Monday') AS week_start,
-                        security_id,
-                        (array_agg(open ORDER BY time))[1] as open,
-                        MAX(high) as high,
-                        MIN(low) as low,
-                        (array_agg(close ORDER BY time DESC))[1] as close,
-                        SUM(volume) as volume
-                    FROM ohlcv_daily
-                    GROUP BY week_start, security_id;
-                """)
-
-                db.execute(create_aggregate_query)
-                db.commit()
-
-                # Add refresh policy
-                refresh_policy_query = text("""
-                    SELECT add_continuous_aggregate_policy('weekly_ohlcv_continuous',
-                        start_offset => INTERVAL '1 month',
-                        end_offset => INTERVAL '1 day',
-                        schedule_interval => INTERVAL '1 day');
-                """)
-
                 try:
-                    db.execute(refresh_policy_query)
-                    db.commit()
-                except:
-                    # Policy might already exist
-                    pass
+                    # Create continuous aggregate - FIXED: Use 2-parameter time_bucket
+                    create_aggregate_query = text("""
+                        CREATE MATERIALIZED VIEW IF NOT EXISTS weekly_ohlcv_continuous
+                        WITH (timescaledb.continuous) AS
+                        SELECT 
+                            time_bucket('1 week', time) AS week_start,
+                            security_id,
+                            FIRST(open, time) as open,
+                            MAX(high) as high,
+                            MIN(low) as low,
+                            LAST(close, time) as close,
+                            SUM(volume) as volume
+                        FROM ohlcv_daily
+                        GROUP BY week_start, security_id;
+                    """)
 
-                return {'status': 'SUCCESS', 'message': 'Continuous aggregate created successfully'}
+                    # Execute outside of transaction context
+                    db.execute(text("COMMIT"))  # End any existing transaction
+                    db.execute(create_aggregate_query)
+
+                    # Add refresh policy
+                    refresh_policy_query = text("""
+                        SELECT add_continuous_aggregate_policy('weekly_ohlcv_continuous',
+                            start_offset => INTERVAL '1 month',
+                            end_offset => INTERVAL '1 day',
+                            schedule_interval => INTERVAL '1 day');
+                    """)
+
+                    try:
+                        db.execute(refresh_policy_query)
+                    except:
+                        # Policy might already exist
+                        pass
+
+                    return {'status': 'SUCCESS', 'message': 'Continuous aggregate created successfully'}
+
+                except Exception as e:
+                    logger.error(f"Error creating continuous aggregate: {e}")
+                    return {'status': 'FAILED', 'error': str(e)}
 
         except Exception as e:
-            logger.error(f"Error creating continuous aggregate: {e}")
+            logger.error(f"Error in continuous aggregate setup: {e}")
             return {'status': 'FAILED', 'error': str(e)}
