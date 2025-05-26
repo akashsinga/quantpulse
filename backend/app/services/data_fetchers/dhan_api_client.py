@@ -1,11 +1,11 @@
 # app/services/data_fetchers/dhan_api_client.py
 
-import requests
-import time
-from typing import Dict, List, Optional, Any
-from datetime import datetime, date
 import json
+import time
+from datetime import date, datetime
+from typing import Any, Dict, List, Optional
 
+import requests
 from app.config import settings
 from app.utils.logger import get_logger
 
@@ -74,12 +74,15 @@ class DhanAPIClient:
             elif response.status_code in [401, 403]:
                 raise DhanAPIError(f"Authentication error: {e}")
             else:
+                # Log the response content for debugging
+                logger.error(f"HTTP {response.status_code} error for {request_type}. Response: {response.text[:500]}")
                 raise DhanAPIError(f"HTTP error {response.status_code}: {e}")
 
         except requests.exceptions.RequestException as e:
             raise DhanAPIError(f"Request failed: {e}")
 
         except json.JSONDecodeError as e:
+            logger.error(f"Invalid JSON response for {request_type}. Response: {response.text[:500]}")
             raise DhanAPIError(f"Invalid JSON response: {e}")
 
     def fetch_historical_data(self, security_id: str, exchange_segment: str, instrument: str, from_date: str = "2000-01-01", to_date: Optional[str] = None) -> Dict[str, Any]:
@@ -131,40 +134,139 @@ class DhanAPIClient:
 
     def fetch_today_eod_data(self, securities_by_segment: Dict[str, List[str]]) -> Dict[str, Any]:
         """
-        Fetch today's EOD data for multiple securities
+        Fetch today's EOD data for multiple securities using Dhan's quote API
         
-        WARNING: This method has NO internal rate limiting.
-        Use DistributedRateLimitedDhanClient for proper coordination.
+        FIXED: Implements batch processing to handle ALL securities (not just first 1000)
+        The quote API provides OHLC + volume data which we need for OHLCV
         
         Args:
-            securities_by_segment: Dict mapping exchange segments to security ID lists
+            securities_by_segment: Dict mapping exchange segments to security ID lists (as strings)
             Example: {"NSE_EQ": ["1333", "11536"], "IDX_I": ["13", "25"]}
             
         Returns:
-            Dict containing OHLC data organized by segment and security
+            Dict containing OHLC + volume data organized by segment and security
         """
-        payload = securities_by_segment
-
-        logger.debug(f"Fetching today EOD data for {sum(len(ids) for ids in securities_by_segment.values())} securities")
+        total_securities = sum(len(ids) for ids in securities_by_segment.values())
+        logger.info(f"Fetching today EOD quote data for {total_securities} securities using batch processing")
 
         try:
-            response = self.session.post(self.today_eod_url, json=payload, timeout=30)
-            data = self._handle_response(response, "TodayEOD")
+            # FIXED: Convert string security IDs to integers as required by Dhan API
+            int_securities_by_segment = {}
+            for segment, security_ids in securities_by_segment.items():
+                try:
+                    int_securities_by_segment[segment] = [int(sid) for sid in security_ids]
+                except (ValueError, TypeError) as e:
+                    logger.error(f"Error converting security IDs to integers for segment {segment}: {e}")
+                    continue
 
-            # Validate response structure
-            if 'data' not in data:
-                raise DhanAPIError("Missing 'data' field in today EOD response")
+            # FIXED: Implement batch processing to handle ALL securities
+            batch_size = 1000  # Dhan API limit
+            combined_data = {'data': {}}
+
+            if total_securities <= batch_size:
+                # Single batch - process all at once
+                logger.debug(f"Single batch processing for {total_securities} securities")
+                return self._fetch_single_batch(int_securities_by_segment)
+
+            # Multiple batches needed
+            batches = self._create_batches(int_securities_by_segment, batch_size)
+            logger.info(f"Processing {total_securities} securities in {len(batches)} batches of max {batch_size} each")
 
             total_received = 0
-            for segment, securities in data['data'].items():
-                total_received += len(securities)
+            for batch_idx, batch_payload in enumerate(batches):
+                try:
+                    logger.info(f"Processing batch {batch_idx + 1}/{len(batches)} with {sum(len(ids) for ids in batch_payload.values())} securities")
 
-            logger.info(f"Successfully fetched today EOD data for {total_received} securities")
-            return data
+                    batch_data = self._fetch_single_batch(batch_payload)
+
+                    # Merge batch data into combined result
+                    for segment, securities in batch_data.get('data', {}).items():
+                        if segment not in combined_data['data']:
+                            combined_data['data'][segment] = {}
+                        combined_data['data'][segment].update(securities)
+                        total_received += len(securities)
+
+                    # Add delay between batches to respect rate limits
+                    if batch_idx < len(batches) - 1:  # Don't delay after last batch
+                        time.sleep(0.2)  # 200ms delay between batches
+
+                except Exception as e:
+                    logger.error(f"Error processing batch {batch_idx + 1}: {e}")
+                    # Continue with next batch instead of failing completely
+                    continue
+
+            # Add status to combined response
+            combined_data['status'] = 'success'
+
+            logger.info(f"Successfully fetched quote data for {total_received} securities across {len(batches)} batches")
+            return combined_data
 
         except Exception as e:
-            logger.error(f"Failed to fetch today EOD data: {e}")
+            logger.error(f"Failed to fetch today EOD quote data: {e}")
             raise
+
+    def _fetch_single_batch(self, securities_by_segment: Dict[str, List[int]]) -> Dict[str, Any]:
+        """
+        Fetch a single batch of securities from the quote API
+        
+        Args:
+            securities_by_segment: Dict with integer security IDs
+            
+        Returns:
+            API response data
+        """
+        batch_size = sum(len(ids) for ids in securities_by_segment.values())
+        logger.debug(f"Fetching single batch: {batch_size} securities")
+
+        response = self.session.post(self.today_eod_url, json=securities_by_segment, timeout=30)
+        data = self._handle_response(response, f"TodayEOD-Batch-{batch_size}")
+
+        # Validate response structure
+        if 'data' not in data:
+            raise DhanAPIError("Missing 'data' field in quote API response")
+
+        return data
+
+    def _create_batches(self, securities_by_segment: Dict[str, List[int]], batch_size: int) -> List[Dict[str, List[int]]]:
+        """
+        Create batches of securities respecting the API limit
+        
+        Args:
+            securities_by_segment: All securities organized by segment
+            batch_size: Maximum securities per batch
+            
+        Returns:
+            List of batch payloads
+        """
+        batches = []
+        current_batch = {}
+        current_count = 0
+
+        # Flatten all securities with their segments
+        all_securities = []
+        for segment, security_ids in securities_by_segment.items():
+            for security_id in security_ids:
+                all_securities.append((segment, security_id))
+
+        # Create batches
+        for segment, security_id in all_securities:
+            if current_count >= batch_size:
+                # Start new batch
+                batches.append(current_batch)
+                current_batch = {}
+                current_count = 0
+
+            if segment not in current_batch:
+                current_batch[segment] = []
+
+            current_batch[segment].append(security_id)
+            current_count += 1
+
+        # Add final batch if it has data
+        if current_batch:
+            batches.append(current_batch)
+
+        return batches
 
     def test_connection(self) -> bool:
         """
@@ -176,8 +278,16 @@ class DhanAPIClient:
             True if connection successful, False otherwise
         """
         try:
-            # Test with a simple request
-            test_payload = {"securityId": "1333", "exchangeSegment": "NSE_EQ", "instrument": "EQUITY", "expiryCode": 0, "oi": False, "fromDate": "2022-01-08", "toDate": "2022-02-08"}
+            # Test with a simple request for a known security
+            test_payload = {
+                "securityId": "1333",  # Reliance Industries
+                "exchangeSegment": "NSE_EQ",
+                "instrument": "EQUITY",
+                "expiryCode": 0,
+                "oi": False,
+                "fromDate": "2024-01-01",
+                "toDate": "2024-01-02"
+            }
             response = self.session.post(self.historical_url, json=test_payload, timeout=10)
             self._handle_response(response, "ConnectionTest")
             logger.info("Dhan API connection test successful")

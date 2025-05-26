@@ -106,10 +106,13 @@ class OHLCVDataParser:
     @staticmethod
     def parse_today_eod_response(response_data: Dict[str, Any], security_mapping: Dict[str, uuid.UUID], source: str = "dhan_api") -> List[Dict[str, Any]]:
         """
-        Parse today EOD response into database-ready records
+        Parse today EOD response from Dhan quote API into database-ready records
+        
+        FIXED: Updated to handle the correct Dhan quote API response format
+        Based on API documentation: quote API returns OHLC + volume data
         
         Args:
-            response_data: Raw response from Dhan today EOD API
+            response_data: Raw response from Dhan quote API
             security_mapping: Mapping of external_id to security UUID
             source: Data source identifier
             
@@ -132,10 +135,15 @@ class OHLCVDataParser:
                             logger.warning(f"No UUID mapping found for external_id {external_id}")
                             continue
 
-                        # Extract OHLC data
+                        # FIXED: Extract OHLC + volume from quote API response format
+                        # Based on API documentation, the quote response has:
+                        # - ohlc: {open, close, high, low}
+                        # - volume: total traded volume
+
                         ohlc = security_data.get('ohlc', {})
                         volume = security_data.get('volume', 0)
 
+                        # Extract OHLC prices
                         open_price = float(ohlc.get('open', 0))
                         high_price = float(ohlc.get('high', 0))
                         low_price = float(ohlc.get('low', 0))
@@ -157,14 +165,14 @@ class OHLCVDataParser:
                         records.append(record)
 
                     except (ValueError, TypeError, KeyError) as e:
-                        logger.warning(f"Error parsing today EOD data for {external_id}: {e}")
+                        logger.warning(f"Error parsing today EOD quote data for {external_id}: {e}")
                         continue
 
-            logger.info(f"Parsed {len(records)} valid today EOD records")
+            logger.info(f"Parsed {len(records)} valid today EOD records from quote API")
             return records
 
         except Exception as e:
-            logger.error(f"Error parsing today EOD response: {e}")
+            logger.error(f"Error parsing today EOD quote response: {e}")
             return []
 
     @staticmethod
@@ -223,6 +231,7 @@ class OHLCVDataParser:
     def group_securities_by_segment(securities: List[Any]) -> Dict[str, List[str]]:
         """
         Group securities by exchange segment for batch API calls
+        FIXED: Updated segment mapping based on Dhan API documentation
         
         Args:
             securities: List of Security model objects
@@ -233,11 +242,13 @@ class OHLCVDataParser:
         segments = {}
 
         for security in securities:
-            # Map security type to exchange segment
+            # FIXED: Use correct segment names from Dhan API documentation
             if security.security_type == "STOCK":
-                segment = "NSE_EQ"
+                segment = "NSE_EQ"  # NSE Equity Cash
             elif security.security_type == "INDEX":
-                segment = "IDX_I"
+                segment = "IDX_I"  # Index Value
+            elif security.security_type == "DERIVATIVE":
+                segment = "NSE_FNO"  # NSE Futures & Options
             else:
                 continue  # Skip other types
 
@@ -259,7 +270,11 @@ class OHLCVDataParser:
         Returns:
             Dhan instrument type
         """
-        mapping = {"STOCK": "EQUITY", "INDEX": "INDEX"}
+        mapping = {
+            "STOCK": "EQUITY",
+            "INDEX": "INDEX",
+            "DERIVATIVE": "FUTSTK"  # Default for derivatives
+        }
         return mapping.get(security_type, "EQUITY")
 
     @staticmethod
@@ -273,5 +288,5 @@ class OHLCVDataParser:
         Returns:
             Dhan exchange segment
         """
-        mapping = {"STOCK": "NSE_EQ", "INDEX": "IDX_I"}
+        mapping = {"STOCK": "NSE_EQ", "INDEX": "IDX_I", "DERIVATIVE": "NSE_FNO"}
         return mapping.get(security_type, "NSE_EQ")

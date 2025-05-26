@@ -12,7 +12,7 @@ from app.services.weekly_aggregator import WeeklyDataAggregator
 from app.api.deps import get_current_user, get_current_superadmin
 from app.db.models.user import User
 from app.db.models.security import Security
-from app.db.session import get_db_session
+from app.db.session import get_db
 from app.utils.logger import get_logger
 
 # Initialize router
@@ -84,7 +84,7 @@ async def start_historical_fetch(request: HistoricalOHLCVRequest, background_tas
             # Get securities to process
             if request.security_ids:
                 security_uuids = [uuid.UUID(sid) for sid in request.security_ids]
-                with get_db_session() as db:
+                with get_db() as db:
                     securities = db.query(Security).filter(Security.id.in_(security_uuids)).all()
             else:
                 securities = fetcher.get_pending_securities('historical')
@@ -128,7 +128,7 @@ async def start_daily_fetch(request: DailyOHLCVRequest, background_tasks: Backgr
 
             if request.security_ids:
                 security_uuids = [uuid.UUID(sid) for sid in request.security_ids]
-                with get_db_session() as db:
+                with get_db() as db:
                     securities = db.query(Security).filter(Security.id.in_(security_uuids)).all()
             else:
                 securities = fetcher.get_pending_securities('daily')
@@ -333,7 +333,7 @@ async def get_ohlcv_statistics(current_user: User = Depends(get_current_user)):
         from app.db.models.ohlcv_weekly import OHLCVWeekly
         from sqlalchemy import func
 
-        with get_db_session() as db:
+        with get_db() as db:
             # Daily data statistics
             daily_stats = db.query(func.count(OHLCVDaily.time).label('total_records'), func.count(func.distinct(OHLCVDaily.security_id)).label('securities_count'), func.min(OHLCVDaily.time).label('earliest_date'), func.max(OHLCVDaily.time).label('latest_date')).first()
 
