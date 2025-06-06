@@ -82,9 +82,9 @@ class OHLCVUnified(Base):
         Index("idx_ohlcv_quality", "quality_score"),
         Index("idx_ohlcv_created_at", "created_at"),
 
-        # Partial indexes for performance
-        Index("idx_ohlcv_recent", "symbol", "timestamp", postgresql_where=text("timestamp > NOW() - INTERVAL '30 days'")),
-        Index("idx_ohlcv_daily_recent", "symbol", "timestamp", postgresql_where=text("timeframe = 'daily' AND timestamp > NOW() - INTERVAL '90 days'")),
+        # Partial indexes for performance - FIXED: Removed time-based conditions that require IMMUTABLE functions
+        Index("idx_ohlcv_daily_recent", "symbol", "timestamp", postgresql_where=text("timeframe = 'daily'")),
+        Index("idx_ohlcv_weekly_recent", "symbol", "timestamp", postgresql_where=text("timeframe = 'weekly'")),
     )
 
     @validates('timeframe')
@@ -225,7 +225,7 @@ class PipelineJob(Base):
         Index("idx_jobs_started_at", "started_at"),
         Index("idx_jobs_heartbeat", "last_heartbeat"),
 
-        # Partial indexes for active jobs
+        # Partial indexes for active jobs - FIXED: Removed NOW() function calls
         Index("idx_jobs_active", "status", "priority", "created_at", postgresql_where=text(f"status IN ('{JobStatus.PENDING.value}', '{JobStatus.RUNNING.value}')")),
         Index("idx_jobs_failed_retryable", "job_type", "retry_count", "created_at", postgresql_where=text(f"status = '{JobStatus.FAILED.value}' AND retry_count < max_retries")),
     )

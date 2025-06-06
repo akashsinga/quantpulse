@@ -18,7 +18,7 @@ class SecurityType(str, PythonEnum):
 
 class Security(Base):
     __tablename__ = "securities"
-    __table_args__ = (UniqueConstraint("symbol", "exchange_id", name="uq_symbol_exchange"), CheckConstraint("(security_type IN ('STOCK', 'INDEX') AND futures_id IS NULL) OR (security_type = 'DERIVATIVE')", name="chk_security_type_consistency"))
+    __table_args__ = (UniqueConstraint("symbol", "exchange_id", name="uq_symbol_exchange"), CheckConstraint("security_type IN ('STOCK', 'INDEX', 'DERIVATIVE')", name="chk_security_type_valid"))
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     symbol = Column(String(100), nullable=False, index=True)
