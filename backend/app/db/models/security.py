@@ -1,6 +1,6 @@
 # backend/app/db/models/security.py
 
-from sqlalchemy import Column, String, Boolean, DateTime, Date, ForeignKey, UUID, UniqueConstraint, Integer, CheckConstraint
+from sqlalchemy import Column, String, Boolean, DateTime, Date, ForeignKey, UUID, UniqueConstraint, Integer
 from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
 import uuid
@@ -18,7 +18,7 @@ class SecurityType(str, PythonEnum):
 
 class Security(Base):
     __tablename__ = "securities"
-    __table_args__ = (UniqueConstraint("symbol", "exchange_id", name="uq_symbol_exchange"), CheckConstraint("security_type IN ('STOCK', 'INDEX', 'DERIVATIVE')", name="chk_security_type_valid"))
+    __table_args__ = (UniqueConstraint("symbol", "exchange_id", name="uq_symbol_exchange"), )
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     symbol = Column(String(100), nullable=False, index=True)
@@ -26,7 +26,7 @@ class Security(Base):
     exchange_id = Column(UUID(as_uuid=True), ForeignKey("exchanges.id"), nullable=False)
     security_type = Column(String(20), nullable=False)  # STOCK, INDEX, DERIVATIVE
     segment = Column(String(20), nullable=False)  # EQUITY, CURRENCY, COMMODITY
-    external_id = Column(Integer, nullable=False, unique=True, index=True)  # Added unique=True
+    external_id = Column(Integer, nullable=False, unique=True, index=True)
     sector = Column(String(100))
     industry = Column(String(100))
     is_active = Column(Boolean, default=True)
@@ -35,14 +35,19 @@ class Security(Base):
 
     # Relationships
     exchange = relationship("Exchange", back_populates="securities")
-    daily_data = relationship("OHLCVDaily", back_populates="security")
-    weekly_data = relationship("OHLCVWeekly", back_populates="security")
-    indicators = relationship("TechnicalIndicator", back_populates="security")
+
+    # Strategy and trading relationships
     strategy_securities = relationship("StrategySecurity", back_populates="security")
     signals = relationship("Signal", back_populates="security")
     backtest_trades = relationship("BacktestTrade", back_populates="security")
     ml_predictions = relationship("MLPrediction", back_populates="security")
     positions = relationship("Position", back_populates="security")
 
-    # Fixed relationship with proper overlaps parameter
+    # Unified pipeline relationships
+    ohlcv_data = relationship("OHLCVUnified", back_populates="security")
+    data_continuity = relationship("DataContinuity", back_populates="security")
+    pipeline_jobs = relationship("PipelineJob", back_populates="security")
+    quality_metrics = relationship("DataQualityMetric", back_populates="security")
+
+    # Derivatives relationship
     futures = relationship("Future", back_populates="security", uselist=False, foreign_keys="Future.security_id")

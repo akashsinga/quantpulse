@@ -12,7 +12,7 @@ def create_superuser(email, password, full_name=None):
         # Check if user already exists
         existing_user = db.query(User).filter(User.email == email).first()
         if existing_user:
-            print(f"User {email} already exists.")
+            logger.info(f"User {email} already exists.")
             return
 
         # Create new superuser

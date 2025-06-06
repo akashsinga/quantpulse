@@ -1,9 +1,9 @@
 # backend/app/db/models/unified_ohlcv.py
 
-from sqlalchemy import Column, String, Numeric, BigInteger, DateTime, CheckConstraint, Index, Text, Integer, Boolean, PrimaryKeyConstraint
+from sqlalchemy import Column, String, Numeric, BigInteger, DateTime, CheckConstraint, Index, Text, Integer, Boolean, PrimaryKeyConstraint, ForeignKey
 from sqlalchemy.dialects.postgresql import JSONB, TSTZRANGE, UUID
 from sqlalchemy.sql import func, text
-from sqlalchemy.orm import validates
+from sqlalchemy.orm import validates, relationship
 from datetime import datetime
 import uuid
 from enum import Enum as PythonEnum
@@ -44,7 +44,7 @@ class OHLCVUnified(Base):
     __tablename__ = "ohlcv_unified"
 
     # Primary fields
-    symbol = Column(String(50), nullable=False, index=True)
+    security_id = Column(UUID(as_uuid=True), ForeignKey("securities.id"), nullable=False, index=True)
     timestamp = Column(DateTime(timezone=True), nullable=False, index=True)
     timeframe = Column(String(10), nullable=False, index=True)
 
@@ -64,7 +64,7 @@ class OHLCVUnified(Base):
     # Constraints
     __table_args__ = (
         # Primary key constraint (use PrimaryKeyConstraint)
-        PrimaryKeyConstraint('symbol', 'timestamp', 'timeframe'),
+        PrimaryKeyConstraint('security_id', 'timestamp', 'timeframe'),
 
         # OHLC validation constraints
         CheckConstraint("high >= GREATEST(open, close, low)", name="check_high_valid"),
@@ -75,16 +75,16 @@ class OHLCVUnified(Base):
         CheckConstraint("timeframe IN ('daily', 'weekly', 'monthly')", name="check_timeframe_valid"),
 
         # Performance indexes
-        Index("idx_ohlcv_symbol_timestamp", "symbol", "timestamp"),
+        Index("idx_ohlcv_security_timestamp", "security_id", "timestamp"),
         Index("idx_ohlcv_timestamp_timeframe", "timestamp", "timeframe"),
-        Index("idx_ohlcv_symbol_timeframe", "symbol", "timeframe"),
+        Index("idx_ohlcv_security_timeframe", "security_id", "timeframe"),
         Index("idx_ohlcv_source", "source"),
         Index("idx_ohlcv_quality", "quality_score"),
         Index("idx_ohlcv_created_at", "created_at"),
 
         # Partial indexes for performance - FIXED: Removed time-based conditions that require IMMUTABLE functions
-        Index("idx_ohlcv_daily_recent", "symbol", "timestamp", postgresql_where=text("timeframe = 'daily'")),
-        Index("idx_ohlcv_weekly_recent", "symbol", "timestamp", postgresql_where=text("timeframe = 'weekly'")),
+        Index("idx_ohlcv_daily_recent", "security_id", "timestamp", postgresql_where=text("timeframe = 'daily'")),
+        Index("idx_ohlcv_weekly_recent", "security_id", "timestamp", postgresql_where=text("timeframe = 'weekly'")),
     )
 
     @validates('timeframe')
@@ -101,8 +101,11 @@ class OHLCVUnified(Base):
             raise ValueError(f"Quality score must be between 0.0 and 1.0, got: {quality_score}")
         return quality_score
 
+    # Relationships
+    security = relationship("Security", back_populates="ohlcv_data")
+
     def __repr__(self):
-        return f"<OHLCVUnified({self.symbol}, {self.timestamp}, {self.timeframe}, O={self.open}, H={self.high}, L={self.low}, C={self.close}, V={self.volume})>"
+        return f"<OHLCVUnified({self.security_id}, {self.timestamp}, {self.timeframe}, O={self.open}, H={self.high}, L={self.low}, C={self.close}, V={self.volume})>"
 
 
 class DataContinuity(Base):
@@ -113,7 +116,7 @@ class DataContinuity(Base):
     __tablename__ = "data_continuity"
 
     # Primary identification
-    symbol = Column(String(50), nullable=False)
+    security_id = Column(UUID(as_uuid=True), ForeignKey("securities.id"), nullable=False)
     timeframe = Column(String(10), nullable=False)
 
     # Continuity tracking
@@ -143,7 +146,7 @@ class DataContinuity(Base):
 
     # Constraints and indexes
     __table_args__ = (
-        PrimaryKeyConstraint('symbol', 'timeframe'),
+        PrimaryKeyConstraint('security_id', 'timeframe'),
         CheckConstraint("gap_count >= 0", name="check_gap_count_positive"),
         CheckConstraint("largest_gap_days >= 0", name="check_largest_gap_positive"),
         CheckConstraint("data_quality_score >= 0.0 AND data_quality_score <= 1.0", name="check_continuity_quality_range"),
@@ -158,8 +161,11 @@ class DataContinuity(Base):
         Index("idx_continuity_auto_fill", "auto_fill_enabled"),
     )
 
+    # Relationships
+    security = relationship("Security", back_populates="data_continuity")
+
     def __repr__(self):
-        return f"<DataContinuity({self.symbol}, {self.timeframe}, last={self.last_update}, gaps={self.gap_count})>"
+        return f"<DataContinuity({self.security_id}, {self.timeframe}, last={self.last_update}, gaps={self.gap_count})>"
 
 
 class PipelineJob(Base):
@@ -174,8 +180,8 @@ class PipelineJob(Base):
     job_type = Column(String(50), nullable=False, index=True)
 
     # Job scope
-    symbol = Column(String(50), nullable=True, index=True)  # Null for multi-symbol jobs
-    symbols = Column(JSONB, nullable=True)  # For batch jobs
+    security_id = Column(UUID(as_uuid=True), ForeignKey("securities.id"), nullable=True, index=True)  # Null for multi-symbol jobs
+    securities = Column(JSONB, nullable=True)  # For batch jobs (array of security_ids)
     date_range = Column(TSTZRANGE, nullable=True)  # PostgreSQL timestamp range
     timeframe = Column(String(10), nullable=True)
 
@@ -221,7 +227,7 @@ class PipelineJob(Base):
         Index("idx_jobs_status_priority", "status", "priority"),
         Index("idx_jobs_type_status", "job_type", "status"),
         Index("idx_jobs_created_at", "created_at"),
-        Index("idx_jobs_symbol_status", "symbol", "status"),
+        Index("idx_jobs_security_status", "security_id", "status"),
         Index("idx_jobs_started_at", "started_at"),
         Index("idx_jobs_heartbeat", "last_heartbeat"),
 
@@ -263,8 +269,11 @@ class PipelineJob(Base):
         """Check if job can be retried"""
         return self.status == JobStatus.FAILED.value and self.retry_count < self.max_retries
 
+    # Relationships
+    security = relationship("Security", back_populates="pipeline_jobs")
+
     def __repr__(self):
-        return f"<PipelineJob({self.id}, {self.job_type}, {self.status}, symbol={self.symbol})>"
+        return f"<PipelineJob({self.id}, {self.job_type}, {self.status}, security_id={self.security_id})>"
 
 
 class DataQualityMetric(Base):
@@ -276,7 +285,7 @@ class DataQualityMetric(Base):
 
     # Primary identification
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    symbol = Column(String(50), nullable=False, index=True)
+    security_id = Column(UUID(as_uuid=True), ForeignKey("securities.id"), nullable=False, index=True)
     timeframe = Column(String(10), nullable=False)
     metric_date = Column(DateTime(timezone=True), nullable=False, index=True)
 
@@ -316,11 +325,14 @@ class DataQualityMetric(Base):
         CheckConstraint("valid_records >= 0", name="check_valid_records_positive"),
         CheckConstraint("invalid_records >= 0", name="check_invalid_records_positive"),
         CheckConstraint("valid_records + invalid_records <= total_records", name="check_record_counts_consistent"),
-        Index("idx_quality_symbol_date", "symbol", "metric_date"),
+        Index("idx_quality_security_date", "security_id", "metric_date"),
         Index("idx_quality_date_timeframe", "metric_date", "timeframe"),
         Index("idx_quality_overall_score", "overall_score"),
         Index("idx_quality_source", "source"),
     )
 
+    # Relationships
+    security = relationship("Security", back_populates="quality_metrics")
+
     def __repr__(self):
-        return f"<DataQualityMetric({self.symbol}, {self.timeframe}, {self.metric_date}, score={self.overall_score})>"
+        return f"<DataQualityMetric({self.security_id}, {self.timeframe}, {self.metric_date}, score={self.overall_score})>"
