@@ -47,21 +47,6 @@ celery_app.conf.update(
 
     # Task routing for different queues
     task_routes={
-        'fetch_historical_ohlcv': {
-            'queue': 'data_fetch'
-        },
-        'fetch_daily_ohlcv': {
-            'queue': 'data_fetch'
-        },
-        'generate_weekly_ohlcv': {
-            'queue': 'aggregation'
-        },
-        'massive_parallel_historical_import': {
-            'queue': 'data_fetch'
-        },
-        'cleanup_failed_ohlcv_fetches': {
-            'queue': 'maintenance'
-        },
         'import_securities': {
             'queue': 'import'
         },

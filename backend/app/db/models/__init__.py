@@ -1,41 +1,34 @@
+# backend/app/db/models/__init__.py
+
 # Import Base first
 from app.db.session import Base
 
-# Import models with no dependencies first
+# Import existing core models (keep these)
 from app.db.models.user import User
 from app.db.models.exchange import Exchange
-
-# Import models with dependencies on the above
 from app.db.models.security import Security
-
-# Import derivative related models
 from app.db.models.derivatives import Future
 
-# Import time-series data models
-from app.db.models.ohlcv_daily import OHLCVDaily
-from app.db.models.ohlcv_weekly import OHLCVWeekly
-from app.db.models.technical_indicators import TechnicalIndicator
-
-# Import OHLCV progress tracking - NEW
-from app.db.models.ohlcv_progress import OHLCVProgress
-
-# Import strategy-related models
+# Import strategy-related models (keep these)
 from app.db.models.strategy import Strategy
 from app.db.models.strategy_security import StrategySecurity
 from app.db.models.signal import Signal
 
-# Import backtesting models
+# Import backtesting models (keep these)
 from app.db.models.backtest_run import BacktestRun
 from app.db.models.backtest_result import BacktestResult
 from app.db.models.backtest_trade import BacktestTrade
 
-# Import ML models
+# Import ML models (keep these)
 from app.db.models.ml_model import MLModel
 from app.db.models.ml_prediction import MLPrediction
 
-# Import portfolio models
+# Import portfolio models (keep these)
 from app.db.models.portfolio import Portfolio
 from app.db.models.position import Position
+
+# Import NEW unified pipeline models
+from app.db.models.unified_ohlcv import (OHLCVUnified, DataContinuity, PipelineJob, DataQualityMetric, Timeframe, JobStatus, JobType)
 
 # For convenient imports
 __all__ = [
@@ -44,10 +37,6 @@ __all__ = [
     'Exchange',
     'Security',
     'Future',
-    'OHLCVDaily',
-    'OHLCVWeekly',
-    'TechnicalIndicator',
-    'OHLCVProgress',  # NEW
     'Strategy',
     'StrategySecurity',
     'Signal',
@@ -58,4 +47,13 @@ __all__ = [
     'MLPrediction',
     'Portfolio',
     'Position',
+
+    # NEW unified pipeline models
+    'OHLCVUnified',
+    'DataContinuity',
+    'PipelineJob',
+    'DataQualityMetric',
+    'Timeframe',
+    'JobStatus',
+    'JobType'
 ]
