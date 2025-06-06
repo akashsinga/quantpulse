@@ -74,7 +74,8 @@ def process_all_securities(db: Session, securities_df, futures_df, nse_exchange:
 
 def _bulk_upsert_securities(db: Session, df: pd.DataFrame, nse_exchange: Exchange) -> Dict:
     """
-    Bulk upsert securities using PostgreSQL's ON CONFLICT with duplicate handling
+    Bulk upsert securities using PostgreSQL's ON CONFLICT with proper constraint handling
+    FIXED: Handle both external_id and symbol+exchange unique constraints
     """
     stats = {'created': 0, 'updated': 0, 'skipped': 0, 'errors': 0}
 
@@ -123,28 +124,55 @@ def _bulk_upsert_securities(db: Session, df: pd.DataFrame, nse_exchange: Exchang
         stats['skipped'] += duplicates_removed
 
     try:
-        # Use PostgreSQL's INSERT ... ON CONFLICT for atomic upsert
+        # FIXED: Use the correct unique constraint for conflict resolution
         stmt = insert(Security).values(deduplicated_data)
 
-        # On conflict with external_id, update the record
-        upsert_stmt = stmt.on_conflict_do_update(index_elements=['external_id'], set_={'symbol': stmt.excluded.symbol, 'name': stmt.excluded.name, 'security_type': stmt.excluded.security_type, 'is_active': stmt.excluded.is_active, 'updated_at': stmt.excluded.updated_at})
+        # Handle conflicts on the symbol+exchange constraint (the actual business rule)
+        upsert_stmt = stmt.on_conflict_do_update(
+            constraint='uq_symbol_exchange',  # Use the actual constraint that's failing
+            set_={
+                'name': stmt.excluded.name,
+                'security_type': stmt.excluded.security_type,
+                'external_id': stmt.excluded.external_id,  # Update external_id in case it changed
+                'segment': stmt.excluded.segment,
+                'is_active': stmt.excluded.is_active,
+                'updated_at': stmt.excluded.updated_at
+            })
 
         # Execute the upsert
         result = db.execute(upsert_stmt)
         db.commit()
 
-        # PostgreSQL doesn't directly return created vs updated counts from ON CONFLICT
-        # So we'll estimate based on the rowcount and log appropriately
         total_affected = result.rowcount
-        stats['created'] = total_affected  # This is an approximation
+        stats['updated'] = total_affected  # Most likely these are updates since constraint exists
 
-        logger.info(f"Bulk upsert completed: {total_affected} securities processed")
+        logger.info(f"Bulk upsert completed: {total_affected} securities processed (constraint: symbol+exchange)")
 
     except SQLAlchemyError as e:
         logger.error(f"Bulk upsert failed: {e}")
         db.rollback()
-        stats['errors'] += len(deduplicated_data)
-        raise
+
+        # Try alternative approach: handle external_id conflicts instead
+        try:
+            logger.info("Retrying with external_id constraint...")
+
+            stmt = insert(Security).values(deduplicated_data)
+
+            # Try with external_id constraint as fallback
+            upsert_stmt = stmt.on_conflict_do_update(index_elements=['external_id'], set_={'symbol': stmt.excluded.symbol, 'name': stmt.excluded.name, 'security_type': stmt.excluded.security_type, 'segment': stmt.excluded.segment, 'is_active': stmt.excluded.is_active, 'updated_at': stmt.excluded.updated_at})
+
+            result = db.execute(upsert_stmt)
+            db.commit()
+
+            total_affected = result.rowcount
+            stats['updated'] = total_affected
+
+            logger.info(f"Fallback upsert completed: {total_affected} securities processed (constraint: external_id)")
+
+        except SQLAlchemyError as e2:
+            logger.error(f"Both upsert attempts failed: {e2}")
+            stats['errors'] += len(deduplicated_data)
+            raise
 
     return stats
 
@@ -152,6 +180,7 @@ def _bulk_upsert_securities(db: Session, df: pd.DataFrame, nse_exchange: Exchang
 def process_futures_relationships(db: Session, futures_df) -> Dict:
     """
     Process futures relationships using bulk upsert with proper duplicate handling
+    FIXED: Better error handling for constraint violations
     """
     stats = {'created': 0, 'updated': 0, 'skipped': 0, 'errors': 0}
 
@@ -185,7 +214,6 @@ def process_futures_relationships(db: Session, futures_df) -> Dict:
     logger.info(f"Prepared {len(futures_data)} valid futures for bulk processing")
 
     # Remove duplicates within this batch based on the unique constraint fields
-    # Constraint: underlying_id, contract_month, expiration_date, settlement_type
     logger.info(f"Deduplicating {len(futures_data)} futures within batch")
 
     constraint_key_to_data = {}
@@ -227,16 +255,60 @@ def process_futures_relationships(db: Session, futures_df) -> Dict:
         db.commit()
 
         total_affected = result.rowcount
-        stats['created'] = total_affected  # Approximation
+        stats['updated'] = total_affected
 
         logger.info(f"Bulk futures upsert completed: {total_affected} futures processed")
 
     except SQLAlchemyError as e:
         logger.error(f"Bulk futures upsert failed: {e}")
         db.rollback()
-        stats['errors'] += len(deduplicated_data)
-        raise
 
+        # Try processing futures individually as fallback
+        try:
+            logger.info("Retrying futures with individual processing...")
+            individual_stats = _process_futures_individually(db, deduplicated_data)
+
+            for key in stats:
+                if key in individual_stats:
+                    stats[key] += individual_stats[key]
+
+        except Exception as e2:
+            logger.error(f"Individual futures processing also failed: {e2}")
+            stats['errors'] += len(deduplicated_data)
+            raise
+
+    return stats
+
+
+def _process_futures_individually(db: Session, futures_data: List[Dict]) -> Dict:
+    """
+    Process futures individually when bulk processing fails
+    """
+    stats = {'created': 0, 'updated': 0, 'skipped': 0, 'errors': 0}
+
+    for future_data in futures_data:
+        try:
+            # Check if future already exists
+            existing = db.query(Future).filter(Future.underlying_id == future_data['underlying_id'], Future.contract_month == future_data['contract_month'], Future.expiration_date == future_data['expiration_date'], Future.settlement_type == future_data['settlement_type']).first()
+
+            if existing:
+                # Update existing
+                for key, value in future_data.items():
+                    if key != 'security_id':  # Don't update the primary key
+                        setattr(existing, key, value)
+                stats['updated'] += 1
+            else:
+                # Create new
+                future = Future(**future_data)
+                db.add(future)
+                stats['created'] += 1
+
+        except Exception as e:
+            logger.warning(f"Error processing individual future: {e}")
+            stats['errors'] += 1
+            continue
+
+    db.commit()
     return stats
 
 
