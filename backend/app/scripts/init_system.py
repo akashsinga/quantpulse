@@ -3,6 +3,7 @@ from app.db.models.user import User
 from app.services.auth_service import get_password_hash
 import uuid
 from app.utils.logger import get_logger
+from app.scripts.populate_holidays import populate_market_holidays
 
 logger = get_logger(__name__)
 
@@ -22,6 +23,19 @@ def create_superuser(email, password, full_name=None):
         logger.info(f"Superuser {email} created successfully.")
 
 
+def initialize_system():
+    """Initialize the complete system"""
+    logger.info("Starting system initialization...")
+
+    # Create superuser
+    create_superuser("admin@quantpulse.app", "password", "System Adminstrator")
+
+    # Populate market holidays
+    logger.info("Populating market holidays")
+    populate_market_holidays()
+
+    logger.info("System initialization completed successfully")
+
+
 if __name__ == "__main__":
-    # Replace with your desired credentials
-    create_superuser("admin@quantpulse.app", "password", "System Admin")
+    initialize_system()

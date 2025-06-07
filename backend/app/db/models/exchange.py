@@ -19,3 +19,4 @@ class Exchange(Base):
 
     # Relationships
     securities = relationship("Security", back_populates="exchange")
+    holidays = relationship("MarketHoliday", back_populates="exchange")

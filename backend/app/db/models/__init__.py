@@ -27,6 +27,9 @@ from app.db.models.ml_prediction import MLPrediction
 from app.db.models.portfolio import Portfolio
 from app.db.models.position import Position
 
+# Import util models
+from app.db.models.market_holiday import MarketHoliday
+
 # Import unified pipeline models
 from app.db.models.unified_ohlcv import (OHLCVUnified, DataContinuity, PipelineJob, DataQualityMetric, Timeframe, JobStatus, JobType)
 
@@ -47,6 +50,7 @@ __all__ = [
     'MLPrediction',
     'Portfolio',
     'Position',
+    'MarketHoliday',
 
     # Unified pipeline models
     'OHLCVUnified',

@@ -1,8 +1,8 @@
 """Initial DB Schema
 
-Revision ID: 6ae7fb42c435
+Revision ID: 72de7b31e604
 Revises: 
-Create Date: 2025-06-06 21:32:30.967724
+Create Date: 2025-06-07 11:13:35.477236
 
 """
 from typing import Sequence, Union
@@ -12,7 +12,7 @@ import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
-revision: str = '6ae7fb42c435'
+revision: str = '72de7b31e604'
 down_revision: Union[str, None] = None
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
@@ -44,6 +44,22 @@ def upgrade() -> None:
     sa.PrimaryKeyConstraint('id')
     )
     op.create_index(op.f('ix_users_email'), 'users', ['email'], unique=True)
+    op.create_table('market_holidays',
+    sa.Column('id', sa.UUID(), nullable=False),
+    sa.Column('holiday_date', sa.Date(), nullable=False),
+    sa.Column('exchange_id', sa.UUID(), nullable=False),
+    sa.Column('holiday_name', sa.String(length=255), nullable=False),
+    sa.Column('holiday_type', sa.String(length=20), nullable=True),
+    sa.Column('description', sa.Text(), nullable=True),
+    sa.Column('is_recurring', sa.Boolean(), nullable=True),
+    sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=True),
+    sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=True),
+    sa.ForeignKeyConstraint(['exchange_id'], ['exchanges.id'], ),
+    sa.PrimaryKeyConstraint('id'),
+    sa.UniqueConstraint('holiday_date', 'exchange_id', 'holiday_name', name='uq_holiday_date_exchange_name')
+    )
+    op.create_index(op.f('ix_market_holidays_exchange_id'), 'market_holidays', ['exchange_id'], unique=False)
+    op.create_index(op.f('ix_market_holidays_holiday_date'), 'market_holidays', ['holiday_date'], unique=False)
     op.create_table('ml_models',
     sa.Column('id', sa.UUID(), nullable=False),
     sa.Column('user_id', sa.UUID(), nullable=False),
@@ -453,6 +469,9 @@ def downgrade() -> None:
     op.drop_table('securities')
     op.drop_table('portfolios')
     op.drop_table('ml_models')
+    op.drop_index(op.f('ix_market_holidays_holiday_date'), table_name='market_holidays')
+    op.drop_index(op.f('ix_market_holidays_exchange_id'), table_name='market_holidays')
+    op.drop_table('market_holidays')
     op.drop_index(op.f('ix_users_email'), table_name='users')
     op.drop_table('users')
     op.drop_index(op.f('ix_exchanges_code'), table_name='exchanges')
