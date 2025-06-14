@@ -1,0 +1,72 @@
+services:
+  postgres:
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_HOST_AUTH_METHOD: trust
+    command: >
+      postgres -c log_statement=all -c log_destination=stderr -c log_min_duration_statement=0 -c shared_preload_libraries=timescaledb
+
+  redis:
+    ports:
+      - "6379:6379"
+    command: redis-server --appendonly yes --loglevel verbose
+
+  backend:
+    build:
+      target: development
+    environment:
+      DEBUG: "true"
+      LOG_LEVEL: DEBUG
+      RELOAD: "true"
+      ENVIRONMENT: development
+    volumes:
+      - ../backend:/app:cached
+      - backend_logs:/app/logs
+    command: >
+      sh -c "
+        echo 'Installing dependencies...' &&
+        pip install -r requirements.txt &&
+        echo 'Running database migrations...' &&
+        alembic upgrade head &&
+        echo 'Starting development server...' &&
+        uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload --log-level debug
+      "
+    ports:
+      - "8000:8000"
+      - "5678:5678" # For debugger
+    stdin_open: true
+    tty: true
+
+  frontend:
+    build:
+      target: development
+    environment:
+      NODE_ENV: development
+      CHOKIDAR_USEPOLLING: "true"
+      WATCHPACK_POLLING: "true"
+      REACT_APP_API_URL: http://localhost:8000
+    volumes:
+      - ../frontend:/app:cached
+      - /app/node_modules
+    command: >
+      sh -c "
+        echo 'Installing dependencies...' &&
+        npm install &&
+        echo 'Starting development server...' &&
+        npm start
+      "
+    ports:
+      - "3000:3000"
+    stdin_open: true
+    tty: true
+
+  nginx:
+    profiles:
+      - "with-nginx" # Only start nginx when explicitly requested in dev
+    volumes:
+      - ./nginx/nginx.dev.conf:/etc/nginx/nginx.conf:ro
+
+volumes:
+  backend_logs:
+    driver: local

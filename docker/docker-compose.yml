@@ -1,0 +1,122 @@
+services:
+  postgres:
+    image: timescale/timescaledb:latest-pg15
+    container_name: quantpulse_postgres
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-quantpulse}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:password}
+      POSTGRES_HOST_AUTH_METHOD: ${POSTGRES_HOST_AUTH_METHOD:-scram-sha-256}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    networks:
+      - quantpulse_network
+    restart: unless-stopped
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-quantpulse}" ]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: quantpulse_redis
+    command: redis-server --appendonly yes --replica-read-only no
+    volumes:
+      - redis_data:/data
+    ports:
+      - "6379:6379"
+    networks:
+      - quantpulse_network
+    restart: unless-stopped
+    healthcheck:
+      test: [ "CMD", "redis-cli", "ping" ]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  backend:
+    build:
+    context: ../backend
+    dockerfile: ../docker/Dockerfile.backend
+    container_name: quantpulse_backend
+    environment:
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-password}@postgres:5432/${POSTGRES_DB:-quantpulse}
+      REDIS_URL: redis://redis:6379/0
+      SECRET_KEY: ${SECRET_KEY:-quant_pulse_2025}
+      ENVIRONMENT: ${ENVIRONMENT:-development}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      DHAN_API_KEY: ${DHAN_API_KEY:-}
+      DHAN_API_SECRET: ${DHAN_API_SECRET:-}
+    volumes:
+      - ../backend:/app
+      - backend_logs:/app/logs
+    ports:
+      - "8000:8000"
+    networks:
+      - quantpulse_network
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:8000/health" ]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  frontend:
+    build:
+      context: ../frontend
+      dockerfile: ../docker/Dockerfile.frontend
+      container_name: quantpulse_frontend
+      environment:
+        REACT_APP_API_URL: ${REACT_APP_API_URL:-http://localhost:8000}
+        REACT_APP_ENVIRONMENT: ${ENVIRONMENT:-development}
+      volumes:
+        - ../frontend:/app
+        - /app/node_modules
+      ports:
+        - "3000:3000"
+      networks:
+        - quantpulse_network
+      depends_on:
+        - backend
+      restart: unless-stopped
+
+  nginx:
+    image: nginx:alpine
+    container_name: quantpulse_nginx
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+    ports:
+      - "80:80"
+      - "443:443"
+    networks:
+      - quantpulse_network
+    depends_on:
+      - backend
+      - frontend
+    restart: unless-stopped
+    healthcheck:
+      test: [ "CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost/health" ]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+  backend_logs:
+    driver: local
+
+networks:
+  quantpulse_network:
+    driver: bridge
