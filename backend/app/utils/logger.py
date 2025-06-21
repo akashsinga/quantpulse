@@ -4,21 +4,22 @@ Simple logging utility using Loguru.
 Provides structured logging with file rotation and basic context management.
 """
 
-import os
 import sys
-from pathlib import Path
 from loguru import logger
+
+from app.core.config import settings
 
 
 class LoguruConfig:
     """Configuration for Loguru logger"""
 
     def __init__(self):
-        self.log_level = os.getenv("LOG_LEVEL", "INFO").upper()
-        self.log_dir = Path(os.getenv("LOG_DIR", "logs"))
-        self.log_rotation = os.getenv("LOG_ROTATION", "10 MB")
-        self.log_retention = os.getenv("LOG_RETENTION", "30 days")
-        self.enable_file_logs = os.getenv("ENABLE_FILE_LOGS", "true").lower() == "true"
+        self.log_level = settings.logging.LOG_LEVEL
+        self.log_dir = settings.logging.LOG_DIR
+        self.log_rotation = settings.logging.LOG_ROTATION
+        self.log_retention = settings.logging.LOG_RETENTION
+        self.enable_file_logs = settings.logging.ENABLE_FILE_LOGS
+        self.enable_json_logs = settings.logging.ENABLE_JSON_LOGS
 
         # Create log directory
         if self.enable_file_logs:

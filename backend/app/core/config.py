@@ -62,9 +62,6 @@ class ExternalAPISettings(BaseSettings):
     ACCESS_TOKEN: str = os.getenv("ACCESS_TOKEN", "")
     CLIENT_ID: str = os.getenv("CLIENT_ID", "")
 
-    HISTORICAL_URL: str = os.getenv("HISTORICAL_URL", "https://api.dhan.co/v2/charts/historical")
-    EOD_URL: str = os.getenv("EOD_URL", "https://api.dhan.co/v2/marketfeed/quote")
-
 
 class LoggingSettings(BaseSettings):
     """Logging configuration settings"""
