@@ -27,7 +27,7 @@ async def lifespan(app: FastAPI):
 
     if settings.ENVIRONMENT == "development":
         db_manager.create_tables()
-        initialize_system()
+        initialize_system(db_manager)
         logger.info("Database tables created (Dev)")
 
     yield

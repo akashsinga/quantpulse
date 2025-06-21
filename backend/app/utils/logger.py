@@ -30,9 +30,9 @@ class LoguruConfig:
     def console_format(self) -> str:
         """Console log format"""
         return ("<green>{time:YYYY-MM-DD HH:mm:ss}</green> | "
-                "<level>{level: <8}</level> | "
+                "{level: <8} | "
                 "<cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> | "
-                "<level>{message}</level>")
+                "{message}")  #
 
     @property
     def file_format(self) -> str:
