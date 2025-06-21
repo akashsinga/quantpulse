@@ -72,3 +72,17 @@ class DatabaseManager:
 
 
 db_manager: DatabaseManager = None
+
+
+def init_database(database_url: str, **kwargs) -> DatabaseManager:
+    """Initialize the global database manager"""
+    global db_manager
+    db_manager = DatabaseManager(database_url, **kwargs)
+    return db_manager
+
+
+def get_db():
+    """Dependency function for FastAPI"""
+    if db_manager is None:
+        raise RuntimeError("Database not initialized. Call init_database() first")
+    return db_manager.get_session_dependency()

@@ -9,6 +9,9 @@ from contextlib import asynccontextmanager
 from app.core.config import settings
 from app.utils.logger import get_logger
 
+# Router Imports
+from app.api.v1 import auth
+
 logger = get_logger(__name__)
 
 
@@ -29,6 +32,7 @@ app = FastAPI(title=settings.app.APP_NAME, description="Predictive Stock Analyti
 app.add_middleware(CORSMiddleware, allow_origins=settings.api.CORS_ORIGINS, allow_credentials=True, allow_methods=["*"], allow_headers=["*"], expose_headers=["Content-Type", "Authorization"], max_age=86400)
 
 # Routers
+app.include_router(auth.router, prefix=f"{settings.api.API_V1_PREFIX}/auth", tags=["auth"])
 
 
 @app.get("/", tags=["root"])
