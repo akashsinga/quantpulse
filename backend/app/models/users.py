@@ -26,7 +26,7 @@ class User(BaseModel):
     is_superuser = Column(Boolean, default=False, nullable=False)
 
     # Relationships
-    preferences = relationship("UserPreferences", back_populates="user_preferences", uselist=False, foreign_keys="UserPreferences.user_id")
+    preferences = relationship("UserPreferences", back_populates="user", uselist=False, foreign_keys="UserPreferences.user_id")
 
     def __repr__(self):
         return f"<User(id={self.id}, email={self.email}, active={self.is_active})>"
@@ -60,7 +60,7 @@ class UserPreferences(BaseModel):
     system_notifications = Column(Boolean, default=True, nullable=False)
 
     # Relationships
-    user = relationship("User", foreign_keys=[user_id], back_populates="user_preferences")
+    user = relationship("User", foreign_keys=[user_id], back_populates="preferences")
 
     def __repr__(self):
         return f"<UserPreferences(user_id={self.user_id}, theme={self.theme})>"

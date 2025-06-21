@@ -22,11 +22,15 @@ logger = get_logger(__name__)
 async def lifespan(app: FastAPI):
     logger.info(f"Starting {settings.app.APP_NAME} Server")
 
-    logger.info(f"{settings.app.APP_NAME} Started")
+    db_manager = init_database(settings.database.DB_URL)
 
-    init_database(settings.database.DB_URL)
+    if settings.ENVIRONMENT == "development":
+        db_manager.create_tables()
+        logger.info("Database tables created (Dev)")
 
     yield
+
+    logger.info(f"{settings.app.APP_NAME} Started")
 
     logger.info(f"Shutting down {settings.app.APP_NAME} Server")
 
