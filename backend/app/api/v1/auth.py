@@ -6,7 +6,6 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordRequestForm
 
 from app.core.database import get_db
-from app.core.exceptions import AuthenticationError
 from app.core.security import TokenManager
 from app.services.auth_service import authenticate_user
 from app.core.config import settings
@@ -20,7 +19,7 @@ async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(
     user = authenticate_user(db, form_data.username, form_data.password)
 
     if not user:
-        raise AuthenticationError(status_code=status.HTTP_401_UNAUTHORIZED, message="Incorrect username or password", headers={"WWW-Authenticate": "Bearer"})
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Incorrect username or password", headers={"WWW-Authenticate": "Bearer"})
 
     access_token_expires = timedelta(minutes=settings.auth.AUTH_ACCESS_TOKEN_EXPIRE_MINUTES)
     expires_at = datetime.now(tz=settings.INDIA_TZ) + access_token_expires

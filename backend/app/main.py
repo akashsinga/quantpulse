@@ -7,6 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 
 from app.core.config import settings
+from app.core.database import init_database
 from app.utils.logger import get_logger
 
 # Router Imports
@@ -20,6 +21,8 @@ async def lifespan(app: FastAPI):
     logger.info(f"Starting {settings.app.APP_NAME} Server")
 
     logger.info(f"{settings.app.APP_NAME} Started")
+
+    init_database(settings.database.DB_URL)
 
     yield
 

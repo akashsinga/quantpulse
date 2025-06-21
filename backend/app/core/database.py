@@ -67,6 +67,9 @@ class DatabaseManager:
         session = self.SessionLocal()
         try:
             yield session
+        except Exception:
+            session.rollback()
+            raise
         finally:
             session.close()
 

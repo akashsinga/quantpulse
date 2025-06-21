@@ -12,6 +12,7 @@ from app.core.database import get_db
 from app.core.security import token_manager, permission_checker
 from app.core.exceptions import AuthenticationError, AuthorizationError, to_http_exception
 from app.core.config import settings
+from app.repositories.users import UserRepository
 from app.utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -29,9 +30,6 @@ async def get_current_user(token: str = Depends(oauth2_scheme), db: Session = De
 
         if email is None:
             raise AuthenticationError("Token missing user identifier")
-
-        # Imported here to avoid circular imports
-        from app.repositories.users import UserRepository
 
         user_repo = UserRepository(db)
         user = user_repo.get_by_email(email)
