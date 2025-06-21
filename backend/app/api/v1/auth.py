@@ -9,12 +9,12 @@ from app.core.database import get_db
 from app.core.security import TokenManager
 from app.services.auth_service import authenticate_user
 from app.core.config import settings
-from app.schemas.auth import Token
+from app.schemas.auth import LoginResponse
 
 router = APIRouter()
 
 
-@router.post("/login", response_model=Token)
+@router.post("/login", response_model=LoginResponse)
 async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(), db=Depends(get_db)):
     user = authenticate_user(db, form_data.username, form_data.password)
 
@@ -26,4 +26,4 @@ async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(
 
     access_token = TokenManager().create_access_token(data={"sub": user.email, "is_superuser": user.is_superuser}, expires_delta=access_token_expires)
 
-    return Token(access_token=access_token, token_type="bearer", expires_at=expires_at)
+    return LoginResponse(access_token=access_token, token_type="bearer", expires_at=expires_at, user=user)

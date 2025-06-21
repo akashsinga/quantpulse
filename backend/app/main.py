@@ -10,6 +10,7 @@ from app.api.middlewares import RequestMiddleware
 
 from app.core.config import settings
 from app.core.database import init_database
+from app.scripts.init_system import initialize_system
 from app.utils.logger import get_logger
 
 # Router Imports
@@ -26,6 +27,7 @@ async def lifespan(app: FastAPI):
 
     if settings.ENVIRONMENT == "development":
         db_manager.create_tables()
+        initialize_system()
         logger.info("Database tables created (Dev)")
 
     yield
