@@ -29,6 +29,7 @@ xgboost>=1.7.6
 statsmodels>=0.14.0  # For time series analysis
 
 ta>=0.10.2  # Technical analysis library for indicators
+dhanhq>=2.0.2
 
 # API Integration & Networking
 httpx>=0.24.1  # Async HTTP client

@@ -104,14 +104,23 @@ class PermissionChecker:
 
     @staticmethod
     def check_user_permission(user, permission: str, resource: Optional[str] = None) -> bool:
-        """Check if the user has a specific permission"""
         # Superuser has all permissions
-        if (hasattr(user, 'is_superuser')) and user.is_superuser:
+        if hasattr(user, 'is_superuser') and user.is_superuser:
             return True
 
         # Check if user is active
         if hasattr(user, 'is_active') and not user.is_active:
             return False
+
+        # Add actual permission checking logic here
+        # For now, return False for non-superusers
+        return False
+
+    @staticmethod
+    def require_permission(user, permission: str, resource: Optional[str] = None):
+        """Require permission or raise AuthorizationError"""
+        if not PermissionChecker.check_user_permission(user, permission, resource):
+            raise AuthorizationError(permission, resource)
 
 
 password_manager = PasswordManager()

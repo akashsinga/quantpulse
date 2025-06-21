@@ -6,6 +6,7 @@ Provides structured logging with file rotation and basic context management.
 
 import sys
 from loguru import logger
+from pathlib import Path
 
 from app.core.config import settings
 
@@ -15,7 +16,7 @@ class LoguruConfig:
 
     def __init__(self):
         self.log_level = settings.logging.LOG_LEVEL
-        self.log_dir = settings.logging.LOG_DIR
+        self.log_dir = Path(settings.logging.LOG_DIR)
         self.log_rotation = settings.logging.LOG_ROTATION
         self.log_retention = settings.logging.LOG_RETENTION
         self.enable_file_logs = settings.logging.ENABLE_FILE_LOGS
