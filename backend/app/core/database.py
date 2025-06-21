@@ -1,6 +1,6 @@
 # backend/app/core/database.py
 """
-Database connection and session management fpr QuantPulse
+Database connection and session management for QuantPulse
 """
 
 from sqlalchemy import create_engine, text
@@ -60,20 +60,8 @@ class DatabaseManager:
         finally:
             session.close()
 
-    def get_session_dependency(self):
-        """
-        Dependency for FastAPI route injection
-        """
-        session = self.SessionLocal()
-        try:
-            yield session
-        except Exception:
-            session.rollback()
-            raise
-        finally:
-            session.close()
 
-
+# Global database manager
 db_manager: DatabaseManager = None
 
 
@@ -87,8 +75,13 @@ def init_database(database_url: str, **kwargs) -> DatabaseManager:
     return db_manager
 
 
-def get_db():
+def get_db() -> Generator:
     """Dependency function for FastAPI"""
     if db_manager is None:
         raise RuntimeError("Database not initialized. Call init_database() first")
-    return db_manager.get_session_dependency()
+
+    session = db_manager.SessionLocal()
+    try:
+        yield session
+    finally:
+        session.close()
