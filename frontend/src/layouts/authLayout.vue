@@ -170,7 +170,7 @@
 }
 
 .logo {
-    @apply w-10 h-10 relative z-10;
+    @apply w-12 h-12 relative z-10;
 }
 
 .logo-glow {
