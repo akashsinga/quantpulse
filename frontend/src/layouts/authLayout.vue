@@ -1,32 +1,37 @@
 <template>
     <div class="auth-layout">
-        <!-- Background elements -->
+        <!-- Enhanced background elements -->
         <div class="auth-background">
             <div class="bg-gradient"></div>
-            <div class="bg-grid"></div>
+            <div class="bg-mesh"></div>
             <div class="bg-orbs">
                 <div class="orb orb-1"></div>
                 <div class="orb orb-2"></div>
+                <div class="orb orb-3"></div>
             </div>
         </div>
 
         <!-- Main container -->
         <div class="auth-container">
-            <!-- Left panel - Branding -->
+            <!-- Left panel - Enhanced Branding -->
             <div class="auth-brand">
                 <div class="brand-content">
-                    <!-- Logo -->
+                    <!-- Logo Section -->
                     <div class="logo-section">
                         <div class="logo-container">
                             <img src="@/assets/images/favicon.svg" alt="QuantPulse" class="logo" />
+                            <div class="logo-glow"></div>
                         </div>
                         <div class="brand-text">
                             <h1 class="brand-name">QuantPulse</h1>
-                            <div class="brand-badge">AI-Powered</div>
+                            <div class="brand-badge">
+                                <i class="ph ph-brain text-xs"></i>
+                                <span>AI-Powered</span>
+                            </div>
                         </div>
                     </div>
 
-                    <!-- Tagline -->
+                    <!-- Enhanced Tagline -->
                     <div class="brand-description">
                         <h2 class="tagline">Where Data Becomes Alpha</h2>
                         <p class="subtitle">
@@ -35,59 +40,54 @@
                         </p>
                     </div>
 
-                    <!-- Features list -->
+                    <!-- Enhanced Features with better icons -->
                     <div class="features-list">
                         <div class="feature-item">
                             <div class="feature-icon">
-                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                                    stroke-width="2">
-                                    <path d="M22 12h-4l-3 9L9 3l-3 9H2" />
-                                </svg>
+                                <i class="ph ph-pulse"></i>
                             </div>
-                            <span>Real-time signal generation</span>
+                            <div class="feature-content">
+                                <span class="feature-title">Real-time signal generation</span>
+                                <span class="feature-desc">ML-driven insights updated every second</span>
+                            </div>
                         </div>
                         <div class="feature-item">
                             <div class="feature-icon">
-                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                                    stroke-width="2">
-                                    <path d="M3 3v18h18" />
-                                    <path d="M7 12l3-3 3 3 5-5" />
-                                </svg>
+                                <i class="ph ph-chart-line-up"></i>
                             </div>
-                            <span>Historical strategy backtesting</span>
+                            <div class="feature-content">
+                                <span class="feature-title">Historical strategy backtesting</span>
+                                <span class="feature-desc">Test strategies against 20+ years of data</span>
+                            </div>
                         </div>
                         <div class="feature-item">
                             <div class="feature-icon">
-                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                                    stroke-width="2">
-                                    <path d="M12 2L2 7l10 5 10-5-10-5z" />
-                                    <path d="M2 17l10 5 10-5" />
-                                    <path d="M2 12l10 5 10-5" />
-                                </svg>
+                                <i class="ph ph-shield-check"></i>
                             </div>
-                            <span>Portfolio risk management</span>
+                            <div class="feature-content">
+                                <span class="feature-title">Portfolio risk management</span>
+                                <span class="feature-desc">Advanced risk metrics and protection</span>
+                            </div>
                         </div>
                     </div>
                 </div>
             </div>
 
-            <!-- Right panel - Auth form -->
+            <!-- Right panel - Enhanced Auth form -->
             <div class="auth-form-panel">
                 <div class="form-container">
                     <div class="form-card">
-                        <div class="form-content">
-                            <!-- Dynamic content slot -->
-                            <slot />
-                        </div>
-
+                        <router-view></router-view>
                         <div class="form-footer">
                             <slot name="footer">
-                                <p class="footer-text">
-                                    By continuing, you agree to our
-                                    <a href="#" class="footer-link">Terms of Service</a>
-                                    and
-                                    <a href="#" class="footer-link">Privacy Policy</a>
-                                </p>
+                                <div class="footer-content">
+                                    <p class="footer-text">
+                                        By continuing, you agree to our
+                                        <a href="#" class="footer-link">Terms of Service</a>
+                                        and
+                                        <a href="#" class="footer-link">Privacy Policy</a>
+                                    </p>
+                                </div>
                             </slot>
                         </div>
                     </div>
@@ -110,15 +110,15 @@
 
 .bg-gradient {
     @apply absolute inset-0;
-    background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+    background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 50%, #e2e8f0 100%);
 }
 
-.bg-grid {
-    @apply absolute inset-0 opacity-30;
+.bg-mesh {
+    @apply absolute inset-0 opacity-25;
     background-image:
-        linear-gradient(rgba(148, 163, 184, 0.1) 1px, transparent 1px),
-        linear-gradient(90deg, rgba(148, 163, 184, 0.1) 1px, transparent 1px);
+        radial-gradient(circle at 1px 1px, rgba(148, 163, 184, 0.12) 1px, transparent 1px);
     background-size: 32px 32px;
+    animation: mesh-move 25s linear infinite;
 }
 
 .bg-orbs {
@@ -126,17 +126,22 @@
 }
 
 .orb {
-    @apply absolute rounded-full blur-3xl opacity-20;
+    @apply absolute rounded-full blur-3xl;
 }
 
 .orb-1 {
-    @apply w-96 h-96 bg-blue-400 -top-48 -left-48;
-    animation: float 20s ease-in-out infinite;
+    @apply w-96 h-96 bg-gradient-to-r from-blue-400 to-purple-400 opacity-30 -top-48 -left-48;
+    animation: float 25s ease-in-out infinite;
 }
 
 .orb-2 {
-    @apply w-80 h-80 bg-purple-400 -bottom-40 -right-40;
-    animation: float 25s ease-in-out infinite reverse;
+    @apply w-80 h-80 bg-gradient-to-r from-purple-400 to-pink-400 opacity-25 -bottom-40 -right-40;
+    animation: float 30s ease-in-out infinite reverse;
+}
+
+.orb-3 {
+    @apply w-64 h-64 bg-gradient-to-r from-cyan-400 to-blue-400 opacity-20 top-1/3 right-1/4;
+    animation: float 35s ease-in-out infinite;
 }
 
 /* Main Container */
@@ -158,14 +163,19 @@
 }
 
 .logo-container {
-    @apply w-16 h-16 rounded-2xl bg-white shadow-lg flex items-center justify-center flex-shrink-0;
+    @apply w-16 h-16 rounded-2xl bg-white shadow-xl flex items-center justify-center flex-shrink-0 relative;
     box-shadow:
         0 10px 25px -5px rgba(0, 0, 0, 0.1),
         0 4px 6px -2px rgba(0, 0, 0, 0.05);
 }
 
 .logo {
-    @apply w-10 h-10;
+    @apply w-10 h-10 relative z-10;
+}
+
+.logo-glow {
+    @apply absolute inset-0 rounded-2xl bg-gradient-to-r from-blue-500 to-purple-500 opacity-20 blur-xl;
+    animation: pulse-glow 3s ease-in-out infinite;
 }
 
 .brand-text {
@@ -174,10 +184,15 @@
 
 .brand-name {
     @apply text-3xl lg:text-4xl font-bold text-gray-900 leading-tight;
+    background: linear-gradient(135deg, #1e293b 0%, #475569 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
 }
 
 .brand-badge {
-    @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 w-fit mt-1;
+    @apply inline-flex items-center space-x-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-gradient-to-r from-blue-100 to-purple-100 text-blue-800 w-fit mt-1;
+    border: 1px solid rgba(59, 130, 246, 0.2);
 }
 
 .brand-description {
@@ -193,15 +208,34 @@
 }
 
 .features-list {
-    @apply space-y-3 max-w-sm mx-auto lg:mx-0;
+    @apply space-y-4 max-w-sm mx-auto lg:mx-0;
 }
 
 .feature-item {
-    @apply flex items-center space-x-3 text-sm text-gray-700;
+    @apply flex items-start space-x-4 p-4 rounded-xl bg-white/60 backdrop-blur-sm border border-gray-200/80;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.feature-item:hover {
+    @apply bg-white/80 transform translate-x-2 border-gray-300/90;
+    box-shadow: 0 8px 25px -5px rgba(0, 0, 0, 0.12);
 }
 
 .feature-icon {
-    @apply w-8 h-8 rounded-lg bg-gray-100 flex items-center justify-center text-gray-600 flex-shrink-0;
+    @apply w-11 h-11 rounded-xl bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white flex-shrink-0;
+    box-shadow: 0 4px 14px rgba(59, 130, 246, 0.25);
+}
+
+.feature-content {
+    @apply flex flex-col space-y-1.5;
+}
+
+.feature-title {
+    @apply text-sm font-semibold text-gray-900;
+}
+
+.feature-desc {
+    @apply text-xs text-gray-600 leading-relaxed;
 }
 
 /* Form Panel */
@@ -214,26 +248,43 @@
 }
 
 .form-card {
-    @apply bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden;
+    @apply bg-white rounded-3xl border border-gray-300 overflow-hidden;
     box-shadow:
-        0 25px 50px -12px rgba(0, 0, 0, 0.08),
-        0 10px 25px -5px rgba(0, 0, 0, 0.1);
-}
-
-.form-content {
-    @apply p-8 pb-6;
+        0 8px 25px -5px rgba(0, 0, 0, 0.08),
+        0 4px 6px -2px rgba(0, 0, 0, 0.04);
 }
 
 .form-footer {
-    @apply px-8 pb-8 pt-4 border-t border-gray-50;
+    @apply px-8 pb-8 pt-6 border-t border-gray-200;
+}
+
+.footer-content {
+    @apply text-center;
 }
 
 .footer-text {
-    @apply text-xs text-gray-500 text-center leading-relaxed;
+    @apply text-xs text-gray-500 leading-relaxed;
 }
 
 .footer-link {
-    @apply text-blue-600 hover:text-blue-700 transition-colors duration-200;
+    @apply text-blue-600 hover:text-blue-700 font-medium transition-colors duration-200;
+}
+
+/* Statistics Section */
+.stats-section {
+    @apply flex items-center justify-center lg:justify-start space-x-8 pt-6 border-t border-gray-300;
+}
+
+.stat-item {
+    @apply flex flex-col items-center lg:items-start space-y-1;
+}
+
+.stat-number {
+    @apply text-lg font-bold text-gray-900;
+}
+
+.stat-label {
+    @apply text-xs text-gray-600 font-medium;
 }
 
 /* Animations */
@@ -245,11 +296,33 @@
     }
 
     33% {
-        transform: translate(20px, -20px) scale(1.1);
+        transform: translate(20px, -20px) scale(1.05);
     }
 
     66% {
-        transform: translate(-20px, 20px) scale(0.9);
+        transform: translate(-20px, 20px) scale(0.95);
+    }
+}
+
+@keyframes mesh-move {
+    0% {
+        transform: translate(0, 0);
+    }
+
+    100% {
+        transform: translate(32px, 32px);
+    }
+}
+
+@keyframes pulse-glow {
+
+    0%,
+    100% {
+        opacity: 0.2;
+    }
+
+    50% {
+        opacity: 0.4;
     }
 }
 
@@ -314,25 +387,34 @@
     }
 
     .bg-gradient {
-        background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+        background: linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #334155 100%);
     }
 
-    .bg-grid {
+    .bg-mesh {
         background-image:
-            linear-gradient(rgba(148, 163, 184, 0.05) 1px, transparent 1px),
-            linear-gradient(90deg, rgba(148, 163, 184, 0.05) 1px, transparent 1px);
+            radial-gradient(circle at 2px 2px, rgba(148, 163, 184, 0.08) 1px, transparent 1px);
     }
 
     .logo-container {
         @apply bg-slate-800 shadow-2xl;
+        box-shadow:
+            0 25px 50px -12px rgba(0, 0, 0, 0.4),
+            0 10px 25px -5px rgba(0, 0, 0, 0.3);
     }
 
-    .brand-badge {
-        @apply bg-blue-900 text-blue-200;
+    .logo-glow {
+        @apply opacity-30;
     }
 
     .brand-name {
-        @apply text-white;
+        background: linear-gradient(135deg, #ffffff 0%, #e2e8f0 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+    }
+
+    .brand-badge {
+        @apply bg-gradient-to-r from-blue-900/50 to-purple-900/50 text-blue-200 border-blue-800/30;
     }
 
     .tagline {
@@ -344,27 +426,58 @@
     }
 
     .feature-item {
-        @apply text-slate-300;
+        @apply bg-slate-800/30 border-slate-700/30;
     }
 
-    .feature-icon {
-        @apply bg-slate-800 text-slate-400;
+    .feature-item:hover {
+        @apply bg-slate-800/50;
+    }
+
+    .feature-title {
+        @apply text-slate-200;
+    }
+
+    .feature-desc {
+        @apply text-slate-400;
     }
 
     .form-card {
-        @apply bg-slate-800 border-slate-700;
+        @apply bg-slate-800 border-slate-600;
+        box-shadow:
+            0 8px 25px -5px rgba(0, 0, 0, 0.25),
+            0 4px 6px -2px rgba(0, 0, 0, 0.15);
     }
 
     .form-footer {
-        @apply border-slate-700;
+        @apply border-slate-600;
     }
 
     .footer-text {
-        @apply text-slate-500;
+        @apply text-slate-400;
     }
 
     .footer-link {
         @apply text-blue-400 hover:text-blue-300;
+    }
+
+    .feature-item {
+        @apply bg-slate-800/30 border-slate-600/60;
+    }
+
+    .feature-item:hover {
+        @apply bg-slate-800/50 border-slate-500/80;
+    }
+
+    .stats-section {
+        @apply border-slate-600;
+    }
+
+    .stat-number {
+        @apply text-white;
+    }
+
+    .stat-label {
+        @apply text-slate-400;
     }
 }
 </style>
