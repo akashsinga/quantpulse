@@ -80,6 +80,9 @@ db_manager: DatabaseManager = None
 def init_database(database_url: str, **kwargs) -> DatabaseManager:
     """Initialize the global database manager"""
     global db_manager
+    if db_manager is not None:
+        logger.warning("Database already initialized, returning existing instance")
+        return db_manager
     db_manager = DatabaseManager(database_url, **kwargs)
     return db_manager
 

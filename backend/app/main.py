@@ -6,6 +6,8 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 
+from app.api.middlewares import RequestMiddleware
+
 from app.core.config import settings
 from app.core.database import init_database
 from app.utils.logger import get_logger
@@ -33,6 +35,7 @@ app = FastAPI(title=settings.app.APP_NAME, description="Predictive Stock Analyti
 
 # Middlewares
 app.add_middleware(CORSMiddleware, allow_origins=settings.api.CORS_ORIGINS, allow_credentials=True, allow_methods=["*"], allow_headers=["*"], expose_headers=["Content-Type", "Authorization"], max_age=86400)
+app.add_middleware(RequestMiddleware)
 
 # Routers
 app.include_router(auth.router, prefix=f"{settings.api.API_V1_PREFIX}/auth", tags=["auth"])
