@@ -6,6 +6,11 @@ const router = createRouter({
   routes: [
     {
       path: '/',
+      name: 'landing',
+      component: () => import('@/pages/landingPage.vue')
+    },
+    {
+      path: '/auth',
       name: 'auth',
       component: authLayout,
       children: [
