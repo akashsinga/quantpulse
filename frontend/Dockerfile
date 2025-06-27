@@ -1,6 +1,6 @@
 # frontend/Dockerfile (Production)
 # Build stage
-FROM node:18-alpine as build-stage
+FROM node:20-alpine as build-stage
 
 WORKDIR /app
 
