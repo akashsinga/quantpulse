@@ -1,0 +1,34 @@
+{
+  "name": "frontend",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@primevue/auto-import-resolver": "^4.3.5",
+    "@primevue/themes": "^4.3.5",
+    "@vueuse/core": "^13.4.0",
+    "autoprefixer": "^10.4.21",
+    "axios": "^1.10.0",
+    "chart.js": "^4.5.0",
+    "lodash": "^4.17.21",
+    "pinia": "^3.0.1",
+    "postcss": "^8.5.6",
+    "primevue": "^4.3.5",
+    "sass": "^1.89.2",
+    "socket.io-client": "^4.8.1",
+    "tailwindcss": "^3.4.17",
+    "vue": "^3.5.13",
+    "vue-router": "^4.5.0"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-vue": "^6.0.0",
+    "vite": "^7.0.0",
+    "vite-plugin-vue-devtools": "^7.7.7",
+    "unplugin-vue-components": "^28.7.0"
+  }
+}
