@@ -27,12 +27,7 @@
                     <div class="flex items-center justify-between">
                         <div class="flex items-center space-x-3">
                             <div class="w-10 h-10 bg-slate-900 rounded-xl flex items-center justify-center">
-                                <svg viewBox="0 0 100 100" class="w-6 h-6 text-white">
-                                    <path
-                                        d="M15 50 L25 50 L30 35 L35 65 L40 25 L45 75 L50 15 L55 85 L60 30 L65 70 L70 40 L75 50 L85 50"
-                                        fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round"
-                                        stroke-linejoin="round" />
-                                </svg>
+                                <img src="@/assets/images/favicon.svg">
                             </div>
                             <span class="text-2xl font-bold text-slate-900">QuantPulse</span>
                         </div>
@@ -438,22 +433,22 @@ export default {
 }
 </script>
 
-<style scoped>
-/* Smooth scrolling */
-html {
-    scroll-behavior: smooth;
-}
-
+<style lang="postcss" scoped>
 /* Custom container max-width */
 .max-w-7xl {
     max-width: 80rem;
 }
 
 /* Focus states for accessibility */
-button:focus,
-a:focus {
-    outline: 2px solid #3b82f6;
-    outline-offset: 2px;
+a {
+    @apply px-3;
+    @apply py-1;
+
+    &:focus {
+        @apply ring-1;
+        @apply ring-blue-100;
+        @apply rounded-md;
+    }
 }
 
 /* CSS Dot Pattern */
