@@ -3,7 +3,7 @@ import './assets/styles/main.scss'
 import { createApp } from 'vue'
 import { createPinia } from 'pinia'
 import PrimeVue from 'primevue/config'
-import Aura from '@primevue/themes/aura'
+import QuantPulse from '@/assets/styles/themes/index'
 
 import App from './App.vue'
 import router from './router'
@@ -14,7 +14,7 @@ app.use(createPinia())
 app.use(router)
 app.use(PrimeVue, {
     theme: {
-        preset: Aura,
+        preset: QuantPulse,
         options: {
             prefix: 'p',
             darkModeSelector: '.dark',
