@@ -9,14 +9,11 @@
             <div class="absolute inset-0 opacity-80 dot-pattern"></div>
 
             <!-- Floating orbs -->
-            <div
-                class="absolute top-20 left-10 w-64 h-64 bg-blue-100 rounded-full opacity-20 blur-3xl animate-float-slow">
+            <div class="absolute top-20 left-10 w-64 h-64 bg-blue-100 rounded-full opacity-20 blur-3xl animate-float-slow">
             </div>
-            <div
-                class="absolute bottom-32 right-16 w-80 h-80 bg-slate-100 rounded-full opacity-25 blur-3xl animate-float-slow-reverse">
+            <div class="absolute bottom-32 right-16 w-80 h-80 bg-slate-100 rounded-full opacity-25 blur-3xl animate-float-slow-reverse">
             </div>
-            <div
-                class="absolute top-1/2 left-1/3 w-48 h-48 bg-blue-50 rounded-full opacity-15 blur-2xl animate-float-slower">
+            <div class="absolute top-1/2 left-1/3 w-48 h-48 bg-blue-50 rounded-full opacity-15 blur-2xl animate-float-slower">
             </div>
         </div>
 
@@ -32,15 +29,11 @@
                             <span class="text-2xl font-bold text-slate-900">QuantPulse</span>
                         </div>
                         <div class="hidden md:flex items-center space-x-8">
-                            <a href="#features"
-                                class="text-slate-600 hover:text-slate-900 transition-colors font-medium">Features</a>
-                            <a href="#how-it-works"
-                                class="text-slate-600 hover:text-slate-900 transition-colors font-medium">How It
+                            <a href="#features" class="text-slate-600 hover:text-slate-900 transition-colors font-medium">Features</a>
+                            <a href="#how-it-works" class="text-slate-600 hover:text-slate-900 transition-colors font-medium">How It
                                 Works</a>
-                            <a href="#contact"
-                                class="text-slate-600 hover:text-slate-900 transition-colors font-medium">Contact</a>
-                            <button
-                                class="bg-slate-900 text-white px-6 py-2.5 rounded-lg hover:bg-slate-800 transition-colors font-medium">
+                            <a href="#contact" class="text-slate-600 hover:text-slate-900 transition-colors font-medium">Contact</a>
+                            <button class="bg-slate-900 text-white px-6 py-2.5 rounded-lg hover:bg-slate-800 transition-colors font-medium">
                                 Get Started
                             </button>
                         </div>
@@ -52,14 +45,12 @@
             <section class="pt-32 pb-20 relative overflow-hidden">
                 <!-- Section-specific background effects -->
                 <div class="absolute inset-0 bg-gradient-to-b from-transparent via-blue-50/20 to-transparent"></div>
-                <div
-                    class="absolute top-10 right-10 w-32 h-32 bg-blue-200 rounded-full opacity-20 blur-2xl animate-pulse-slow">
+                <div class="absolute top-10 right-10 w-32 h-32 bg-blue-200 rounded-full opacity-20 blur-2xl animate-pulse-slow">
                 </div>
 
                 <div class="max-w-7xl mx-auto px-6 text-center relative z-10">
                     <div class="max-w-4xl mx-auto">
-                        <div
-                            class="inline-flex items-center px-4 py-2 rounded-full bg-slate-100 text-slate-700 text-sm font-medium mb-8">
+                        <div class="inline-flex items-center px-4 py-2 rounded-full bg-slate-100 text-slate-700 text-sm font-medium mb-8">
                             <div class="w-2 h-2 bg-blue-500 rounded-full mr-2"></div>
                             AI-Powered Trading Platform
                         </div>
@@ -75,12 +66,10 @@
                         </p>
 
                         <div class="flex flex-col sm:flex-row gap-4 justify-center">
-                            <button
-                                class="bg-slate-900 text-white px-8 py-4 rounded-lg text-lg font-semibold hover:bg-slate-800 transition-colors">
+                            <button class="bg-slate-900 text-white px-8 py-4 rounded-lg text-lg font-semibold hover:bg-slate-800 transition-colors">
                                 Start Building Strategies
                             </button>
-                            <button
-                                class="border-2 border-slate-300 text-slate-700 px-8 py-4 rounded-lg text-lg font-semibold hover:bg-slate-50 transition-colors">
+                            <button class="border-2 border-slate-300 text-slate-700 px-8 py-4 rounded-lg text-lg font-semibold hover:bg-slate-50 transition-colors">
                                 Documentation
                             </button>
                         </div>
@@ -158,8 +147,7 @@
                 <div class="max-w-7xl mx-auto px-6 relative z-10">
                     <div class="grid lg:grid-cols-2 gap-16 items-center">
                         <div>
-                            <div
-                                class="inline-flex items-center px-3 py-1 rounded-full bg-blue-100 text-blue-700 text-sm font-medium mb-6">
+                            <div class="inline-flex items-center px-3 py-1 rounded-full bg-blue-100 text-blue-700 text-sm font-medium mb-6">
                                 Smart Solutions
                             </div>
 
@@ -205,8 +193,7 @@
 
                         <div class="bg-slate-50 p-12 rounded-2xl border border-slate-200">
                             <div class="text-center">
-                                <div
-                                    class="w-16 h-16 bg-slate-900 rounded-2xl flex items-center justify-center mx-auto mb-6">
+                                <div class="w-16 h-16 bg-slate-900 rounded-2xl flex items-center justify-center mx-auto mb-6">
                                     <i class="ph ph-chart-line text-white text-2xl"></i>
                                 </div>
                                 <h4 class="text-slate-900 font-bold text-xl mb-4">Professional Grade Platform</h4>
@@ -223,8 +210,7 @@
             <section id="how-it-works" class="py-20 bg-slate-50 relative overflow-hidden">
                 <!-- Section background effects -->
                 <div class="absolute inset-0 bg-gradient-to-b from-slate-50 via-white/80 to-slate-50"></div>
-                <div
-                    class="absolute top-20 left-1/4 w-48 h-48 bg-blue-100 rounded-full opacity-15 blur-3xl animate-pulse-slower">
+                <div class="absolute top-20 left-1/4 w-48 h-48 bg-blue-100 rounded-full opacity-15 blur-3xl animate-pulse-slower">
                 </div>
                 <div class="absolute bottom-20 right-1/4 w-56 h-56 bg-slate-200 rounded-full opacity-20 blur-2xl"></div>
 
@@ -241,8 +227,7 @@
                     <div class="max-w-4xl mx-auto">
                         <div class="space-y-12">
                             <div class="flex flex-col md:flex-row items-center gap-8">
-                                <div
-                                    class="w-16 h-16 bg-slate-900 rounded-full flex items-center justify-center flex-shrink-0">
+                                <div class="w-16 h-16 bg-slate-900 rounded-full flex items-center justify-center flex-shrink-0">
                                     <span class="text-white font-bold text-xl">1</span>
                                 </div>
                                 <div class="text-center md:text-left">
@@ -255,8 +240,7 @@
                             </div>
 
                             <div class="flex flex-col md:flex-row items-center gap-8">
-                                <div
-                                    class="w-16 h-16 bg-slate-900 rounded-full flex items-center justify-center flex-shrink-0">
+                                <div class="w-16 h-16 bg-slate-900 rounded-full flex items-center justify-center flex-shrink-0">
                                     <span class="text-white font-bold text-xl">2</span>
                                 </div>
                                 <div class="text-center md:text-left">
@@ -269,8 +253,7 @@
                             </div>
 
                             <div class="flex flex-col md:flex-row items-center gap-8">
-                                <div
-                                    class="w-16 h-16 bg-slate-900 rounded-full flex items-center justify-center flex-shrink-0">
+                                <div class="w-16 h-16 bg-slate-900 rounded-full flex items-center justify-center flex-shrink-0">
                                     <span class="text-white font-bold text-xl">3</span>
                                 </div>
                                 <div class="text-center md:text-left">
@@ -283,8 +266,7 @@
                             </div>
 
                             <div class="flex flex-col md:flex-row items-center gap-8">
-                                <div
-                                    class="w-16 h-16 bg-slate-900 rounded-full flex items-center justify-center flex-shrink-0">
+                                <div class="w-16 h-16 bg-slate-900 rounded-full flex items-center justify-center flex-shrink-0">
                                     <span class="text-white font-bold text-xl">4</span>
                                 </div>
                                 <div class="text-center md:text-left">
@@ -356,8 +338,7 @@
                         <p class="text-xl text-slate-600 mb-8">
                             Join traders who use data-driven strategies to make smarter investment decisions
                         </p>
-                        <button
-                            class="bg-slate-900 text-white px-12 py-4 rounded-lg text-lg font-semibold hover:bg-slate-800 transition-colors">
+                        <button class="bg-slate-900 text-white px-12 py-4 rounded-lg text-lg font-semibold hover:bg-slate-800 transition-colors">
                             Start Your Journey
                         </button>
                     </div>
@@ -372,10 +353,7 @@
                             <div class="flex items-center space-x-3 mb-6">
                                 <div class="w-10 h-10 bg-white rounded-xl flex items-center justify-center">
                                     <svg viewBox="0 0 100 100" class="w-6 h-6 text-slate-900">
-                                        <path
-                                            d="M15 50 L25 50 L30 35 L35 65 L40 25 L45 75 L50 15 L55 85 L60 30 L65 70 L70 40 L75 50 L85 50"
-                                            fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round"
-                                            stroke-linejoin="round" />
+                                        <path d="M15 50 L25 50 L30 35 L35 65 L40 25 L45 75 L50 15 L55 85 L60 30 L65 70 L70 40 L75 50 L85 50" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" />
                                     </svg>
                                 </div>
                                 <span class="text-2xl font-bold">QuantPulse</span>
@@ -400,8 +378,7 @@
                             <p class="text-slate-300 mb-6">
                                 Ready to transform your trading approach?
                             </p>
-                            <button
-                                class="border border-white text-white px-6 py-3 rounded-lg hover:bg-white hover:text-slate-900 transition-colors">
+                            <button class="border border-white text-white px-6 py-3 rounded-lg hover:bg-white hover:text-slate-900 transition-colors">
                                 Contact Us
                             </button>
                         </div>
