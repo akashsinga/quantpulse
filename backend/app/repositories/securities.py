@@ -4,7 +4,6 @@ Data access layer for securities, exchanges and derivatives operations.
 Handles all database interactions for market data models.
 """
 
-from tkinter import SE
 from typing import Optional, List, Dict, Any
 from uuid import UUID
 from sqlalchemy.orm import Session
