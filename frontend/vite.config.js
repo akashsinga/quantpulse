@@ -24,13 +24,6 @@ export default ({ mode }) => {
       host: '0.0.0.0',
       watch: {
         usePolling: true
-      },
-      proxy: {
-        '/app': {
-          target: process.env.VITE_QP_BACKEND_URL,
-          changeOrigin: true,
-          rewrite: (path) => path.replace(/^\/app/, '')
-        }
       }
     },
     resolve: {

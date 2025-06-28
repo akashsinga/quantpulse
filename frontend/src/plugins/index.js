@@ -3,8 +3,9 @@ import Axios from 'axios'
 import queryString from 'query-string'
 
 const axiosInstance = Axios.create({
-    baseURL: import.meta.env.MODE === 'development' ? `${import.meta.env.VITE_QP_FRONTEND_URL}app` : window.location.origin,
-    headers: { 'Content-Type': 'application/json' },
+    baseURL: import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api/v1',
+    withCredentials: true,
+    headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
     paramsSerializer: (params) => queryString.stringify(params, { arrayFormat: 'repeat' })
 
 })
