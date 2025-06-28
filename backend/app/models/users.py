@@ -27,6 +27,7 @@ class User(BaseModel):
 
     # Relationships
     preferences = relationship("UserPreferences", back_populates="user", uselist=False, foreign_keys="UserPreferences.user_id")
+    task_runs = relationship("TaskRun", back_populates="user", lazy="dynamic")
 
     def __repr__(self):
         return f"<User(id={self.id}, email={self.email}, active={self.is_active})>"

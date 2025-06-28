@@ -25,6 +25,11 @@ class APPSettings(BaseSettings):
         env_prefix = "APP_"
 
 
+class CelerySettings(BaseSettings):
+    """Celery & Redis Settings"""
+    REDIS_URL: str = os.getenv("REDIS_URL", "redis://localhost:6379/0")
+
+
 class DatabaseSettings(BaseSettings):
     """Database configuration settings"""
     DB_URL: str = os.getenv("DB_URL", "postgresql+psycopg2://postgres:password@localhost:5432/quantpulse")
@@ -85,6 +90,7 @@ class Settings(BaseSettings):
     auth: AuthSettings = AuthSettings()
     external: ExternalAPISettings = ExternalAPISettings()
     logging: LoggingSettings = LoggingSettings()
+    celery: CelerySettings = CelerySettings()
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)

@@ -58,3 +58,28 @@ class ExpiryMonth(str, PythonEnum):
     OCT = "OCT"
     NOV = "NOV"
     DEC = "DEC"
+
+
+# Celery Enums
+class TaskStatus(str, PythonEnum):
+    """Task execution status enumeration"""
+    PENDING = "PENDING"
+    RECEIVED = "RECEIVED"
+    STARTED = "STARTED"
+    PROGRESS = "PROGRESS"
+    PROCESSING = "PROCESSING"
+    PARTIAL_SUCCESS = "PARTIAL_SUCCESS"
+    SUCCESS = "SUCCESS"
+    FAILURE = "FAILURE"
+    RETRY = "RETRY"
+    REVOKED = "REVOKED"
+    CANCELLED = "CANCELLED"
+
+
+class TaskType(str, PythonEnum):
+    """Task type enumeration"""
+    SECURITIES_IMPORT = "SECURITIES_IMPORT"
+    DATA_ENRICHMENT = "DATA_ENRICHMENT"
+    SYSTEM_MAINTENANCE = "SYSTEM_MAINTENANCE"
+    CSV_PROCESSING = "CSV_PROCESSING"
+    API_ENRICHMENT = "API_ENRICHMENT"
