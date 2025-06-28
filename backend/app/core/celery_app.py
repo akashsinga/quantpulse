@@ -1,6 +1,7 @@
 # backend/app/core/celery_app.py
 
 import os
+from venv import create
 
 from celery import Celery
 from celery.signals import worker_init, worker_process_init
@@ -67,6 +68,9 @@ def create_celery_app() -> Celery:
     )
 
     return celery_app
+
+
+celery_app = create_celery_app()
 
 
 @worker_init.connect

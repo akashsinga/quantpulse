@@ -39,6 +39,30 @@ services:
       timeout: 10s
       retries: 3
 
+  # Celery Worker
+  celery-worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: quantpulse-celery-worker
+    env_file:
+      - .env
+    environment:
+      - DB_URL=postgresql+psycopg2://postgres:${DB_PASSWORD:-quantpulse123}@postgres:5432/quantpulse
+      - REDIS_URL=redis://redis:6379/0
+    volumes:
+      - ./backend:/app
+      - backend_logs:/app/logs
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - quantpulse-network
+    restart: unless-stopped
+    command: celery -A app.core.celery_app:celery_app worker --loglevel=info --concurrency=2
+
   # Backend API
   backend:
     build:
