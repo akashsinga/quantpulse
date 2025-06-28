@@ -1,11 +1,12 @@
 import _ from 'lodash'
 import Axios from 'axios'
+import queryString from 'query-string'
 
 const axiosInstance = Axios.create({
-    baseURL: import.meta.env.BASE_URL || window.location.origin,
-    headers: {
-        'Content-Type': 'application/json'
-    }
+    baseURL: import.meta.env.MODE === 'development' ? `${import.meta.env.VITE_QP_FRONTEND_URL}app` : window.location.origin,
+    headers: { 'Content-Type': 'application/json' },
+    paramsSerializer: (params) => queryString.stringify(params, { arrayFormat: 'repeat' })
+
 })
 
 axiosInstance.interceptors.request.use((config) => {

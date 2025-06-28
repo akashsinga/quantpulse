@@ -14,7 +14,7 @@ const router = createRouter({
       name: 'auth',
       component: authLayout,
       children: [
-        { path: '', redirect: '/login' },
+        { path: '', name: 'redirect', redirect: '/login' },
         { path: 'login', name: 'login', component: () => import('@/pages/auth/loginPage.vue'), meta: { requiresAuth: false, title: 'Login | QuantPulse' } }
       ],
       meta: { requiresAuth: false, title: 'QuantPulse - Predictive Stock Analytics' }
