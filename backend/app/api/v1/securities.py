@@ -13,7 +13,7 @@ from app.repositories.securities import SecurityRepository, ExchangeRepository, 
 from app.repositories.tasks import TaskRunRepository
 from app.schemas.base import APIResponse, PaginatedResponse, PaginationMeta
 from app.schemas.security import SecurityResponse, ExchangeResponse, FutureResponse, ImportRequest, ImportStatusResponse
-from app.tasks.import_securities import import_securities
+from app.tasks.import_securities import import_securities_from_dhan
 from app.utils.enum import TaskType
 from app.utils.logger import get_logger
 
