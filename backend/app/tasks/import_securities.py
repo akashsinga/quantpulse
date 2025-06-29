@@ -14,7 +14,7 @@ logger = get_logger(__name__)
 
 
 @celery_app.task(bind=True, base=DatabaseTask, name="import_securities.test_task")
-def test_securities_import(self) -> Dict[str, Any]:
+def import_securities(self) -> Dict[str, Any]:
     """
     Test task to verify Celery is working.
     TODO: Replace with actual import logic later.
