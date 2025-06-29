@@ -8,14 +8,19 @@ from app.core.security import PasswordManager
 from app.repositories.users import UserRepository
 
 
-def authenticate_user(db: Session, email: str, password: str) -> Optional[User]:
-    """Authenticate a user with email and password"""
-    user = UserRepository(db).get_active_by_email(email)
+class AuthService:
 
-    if not user:
-        return None
+    def __init__(self, db: Session):
+        self.db = db
 
-    if not PasswordManager.verify_password(password, user.hashed_password):
-        return None
+    def authenticate_user(self, email: str, password: str) -> Optional[User]:
+        """Authenticate a user with email and password"""
+        user = UserRepository(self.db).get_active_by_email(email)
 
-    return user
+        if not user:
+            return None
+
+        if not PasswordManager.verify_password(password, user.hashed_password):
+            return None
+
+        return user

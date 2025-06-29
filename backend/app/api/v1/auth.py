@@ -7,7 +7,7 @@ from fastapi.security import OAuth2PasswordRequestForm
 
 from app.core.database import get_db
 from app.core.security import TokenManager
-from app.services.auth_service import authenticate_user
+from app.services.auth_service import AuthService
 from app.core.config import settings
 from app.schemas.auth import LoginResponse
 
@@ -16,7 +16,8 @@ router = APIRouter()
 
 @router.post("/login", response_model=LoginResponse)
 async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(), db=Depends(get_db)):
-    user = authenticate_user(db, form_data.username, form_data.password)
+    auth_service = AuthService(db)
+    user = auth_service.authenticate_user(form_data.username, form_data.password)
 
     if not user:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Incorrect username or password", headers={"WWW-Authenticate": "Bearer"})
