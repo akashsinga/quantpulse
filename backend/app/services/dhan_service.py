@@ -97,7 +97,7 @@ class DhanService:
                     continue
 
                 security_data = {
-                    'symbol': row["SYMBOL_NAME"].strip(),
+                    'symbol': row["UNDERLYING_SYMBOL"].strip(),
                     'name': row["DISPLAY_NAME"].strip(),
                     'external_id': int(row["SECURITY_ID"]),
                     'security_type': self._map_security_type(row),
@@ -117,7 +117,7 @@ class DhanService:
                 processed_securities.append(security_data)
 
             except Exception as e:
-                logger.warning(f"Error processing security {row.get('SYMBOL_NAME', 'unknown')}: {e}")
+                logger.warning(f"Error processing security {row.get('UNDERLYING_SYMBOL', 'unknown')}: {e}")
                 continue
 
         logger.info(f"Processed {len(processed_securities)} securities from {len(securities_df)} records")
@@ -139,7 +139,7 @@ class DhanService:
 
                 # Create derivative security data
                 derivative_security = {
-                    'symbol': row["SYMBOL_NAME"].strip(),
+                    'symbol': row["UNDERLYING_SYMBOL"].strip(),
                     'name': row["DISPLAY_NAME"].strip(),
                     'external_id': int(row["SECURITY_ID"]),
                     'security_type': SecurityType.DERIVATIVE.value,
@@ -160,8 +160,8 @@ class DhanService:
                     'external_id': int(row["SECURITY_ID"]),
                     'underlying_security_id': int(row["UNDERLYING_SECURITY_ID"]) if row.get("UNDERLYING_SECURITY_ID") != "NA" else None,
                     'underlying_symbol': row["UNDERLYING_SYMBOL"].strip(),
-                    'expiration_date': self._parse_expiry_from_symbol(row["SYMBOL_NAME"]),
-                    'contract_month': self._extract_contract_month(row["SYMBOL_NAME"]),
+                    'expiration_date': self._parse_expiry_from_symbol(row["UNDERLYING_SYMBOL"]),
+                    'contract_month': self._extract_contract_month(row["UNDERLYING_SYMBOL"]),
                     'settlement_type': SettlementType.CASH.value if row["INSTRUMENT"] == "FUTIDX" else SettlementType.PHYSICAL.value,
                     'contract_size': 1.0,
                     'is_active': True,
@@ -169,7 +169,7 @@ class DhanService:
                 futures_data.append(future_data)
 
             except Exception as e:
-                logger.warning(f"Error processing future {row.get('SYMBOL_NAME', 'unknown')}: {e}")
+                logger.warning(f"Error processing future {row.get('UNDERLYING_SYMBOL', 'unknown')}: {e}")
                 continue
 
         logger.info(f"Processed {len(derivative_securities)} derivative securities and {len(futures_data)} futures relationships")
@@ -224,7 +224,7 @@ class DhanService:
         try:
             payload = {"data": {"fields": ["Sector", "SubSector"], "params": [{"field": "Exch", "op": "", "val": "NSE"}, {"field": "Sym", "op": "", "val": symbol}]}}
 
-            response = requests.post(url, json=payload, timeout=30)
+            response = requests.post(url, json=payload, timeout=60)
             response.raise_for_status()
 
             data = response.json()
@@ -299,7 +299,7 @@ class DhanService:
     # Private helper methods
     def _validate_security_row(self, row: Dict) -> bool:
         """Validate required fields for security"""
-        required_fields = ["SECURITY_ID", "SYMBOL_NAME", "EXCH_ID"]
+        required_fields = ["SECURITY_ID", "UNDERLYING_SYMBOL", "EXCH_ID"]
 
         for field in required_fields:
             if not row.get(field) or pd.isna(row.get(field)):
