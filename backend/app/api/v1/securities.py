@@ -156,7 +156,7 @@ async def get_futures(skip: int = 0, limit: int = 100, underlying_id: Optional[U
 
 
 @router.post("/import/", response_model=APIResponse[ImportStatusResponse])
-async def import_securities(request: ImportRequest, background_tasks: BackgroundTasks, db: Session = Depends(get_db), current_user=Depends(get_current_active_user)):
+async def import_securities(db: Session = Depends(get_db), current_user=Depends(get_current_active_user)):
     """
     Start securities import from Dhan CSV.
     This will run as a background task and return a task ID for monitoring.
@@ -172,13 +172,10 @@ async def import_securities(request: ImportRequest, background_tasks: Background
             title="Import Securities from Dhan CSV",
             description="Import all securities data from Dhan API scrip master CSV",
             user_id=current_user.id,
-            input_parameters={
-                "force_refresh": request.force_refresh,
-                "source": "dhan_csv"
-            })
+            input_parameters={})
 
         # Start the Celery task
-        celery_task = import_securities.delay(force_refresh=request.force_refresh)
+        celery_task = import_securities_from_dhan.delay()
 
         # Update task run with Celery task ID
         task_service.task_run_repo.update(task_run, {"celery_task_id": celery_task.id})
