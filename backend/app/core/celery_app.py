@@ -16,12 +16,12 @@ logger = get_logger(__name__)
 def create_celery_app() -> Celery:
     """Create and configure Celery application"""
 
-    celery_app = Celery("quantpulse", broker=settings.celery.REDIS_URL, backend=settings.celery.REDIS_URL, include=['app.tasks.securities_import'])
+    celery_app = Celery("quantpulse", broker=settings.celery.REDIS_URL, backend=settings.celery.REDIS_URL, include=['app.tasks.import_securities'])
 
     celery_app.conf.update(
         # Task routes
         task_routes={
-            'app.tasks.securities_import.*': {
+            'app.tasks.import_securities.*': {
                 'queue': 'securities'
             },
         },
