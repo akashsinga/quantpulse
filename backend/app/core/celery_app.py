@@ -1,8 +1,5 @@
 # backend/app/core/celery_app.py
-
 import os
-from venv import create
-
 from celery import Celery
 from celery.signals import worker_init, worker_process_init
 from kombu import Queue
@@ -16,21 +13,15 @@ logger = get_logger(__name__)
 def create_celery_app() -> Celery:
     """Create and configure Celery application"""
 
-    celery_app = Celery("quantpulse", broker=settings.celery.REDIS_URL, backend=settings.celery.REDIS_URL, include=['app.tasks.import_securities'])
+    celery_app = Celery("quantpulse", broker=settings.celery.REDIS_URL, backend=settings.celery.REDIS_URL)
 
     celery_app.conf.update(
         # Task routes
         task_routes={
-            'app.tasks.import_securities.*': {
+            'import_securities_from_dhan': {
                 'queue': 'securities'
             },
         },
-
-        # Queue definitions
-        task_queues=[
-            Queue('default', routing_key='default'),
-            Queue('securities', routing_key='securities'),
-        ],
 
         # Task execution settings
         task_serializer='json',
@@ -65,12 +56,23 @@ def create_celery_app() -> Celery:
         # Security
         worker_hijack_root_logger=False,
         worker_log_color=False,
-    )
+
+        # Add imports for task discovery
+        imports=[
+            'app.tasks.import_securities',
+        ])
 
     return celery_app
 
 
 celery_app = create_celery_app()
+
+# Import tasks after celery_app is created to avoid circular imports
+try:
+    from app.tasks import import_securities
+    logger.info("Successfully imported task modules")
+except ImportError as e:
+    logger.error(f"Failed to import task modules: {e}")
 
 
 @worker_init.connect
