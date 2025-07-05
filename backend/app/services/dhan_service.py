@@ -12,7 +12,7 @@ from dhanhq import dhanhq
 from app.utils.logger import get_logger
 from app.core.config import settings
 from app.core.exceptions import ExternalAPIError, ValidationError
-from app.utils.enum import SecurityType, SettlementType
+from app.utils.enum import SecurityType, SettlementType, SecuritySegment
 
 logger = get_logger(__name__)
 
@@ -139,11 +139,11 @@ class DhanService:
 
                 # Create derivative security data
                 derivative_security = {
-                    'symbol': row["UNDERLYING_SYMBOL"].strip(),
+                    'symbol': row["SYMBOL_NAME"].strip(),
                     'name': row["DISPLAY_NAME"].strip(),
                     'external_id': int(row["SECURITY_ID"]),
                     'security_type': SecurityType.DERIVATIVE.value,
-                    'segment': "DERIVATIVE",
+                    'segment': row['INSTRUMENT'],
                     'isin': None,
                     'lot_size': self._safe_int(row.get("LOT_SIZE"), 1),
                     'tick_size': str(row.get("TICK_SIZE", "0.05")),
@@ -160,8 +160,8 @@ class DhanService:
                     'external_id': int(row["SECURITY_ID"]),
                     'underlying_security_id': int(row["UNDERLYING_SECURITY_ID"]) if row.get("UNDERLYING_SECURITY_ID") != "NA" else None,
                     'underlying_symbol': row["UNDERLYING_SYMBOL"].strip(),
-                    'expiration_date': self._parse_expiry_from_symbol(row["UNDERLYING_SYMBOL"]),
-                    'contract_month': self._extract_contract_month(row["UNDERLYING_SYMBOL"]),
+                    'expiration_date': self._parse_expiry_from_symbol(row["SYMBOL_NAME"]),
+                    'contract_month': self._extract_contract_month(row["SYMBOL_NAME"]),
                     'settlement_type': SettlementType.CASH.value if row["INSTRUMENT"] == "FUTIDX" else SettlementType.PHYSICAL.value,
                     'contract_size': 1.0,
                     'is_active': True,
@@ -169,7 +169,7 @@ class DhanService:
                 futures_data.append(future_data)
 
             except Exception as e:
-                logger.warning(f"Error processing future {row.get('UNDERLYING_SYMBOL', 'unknown')}: {e}")
+                logger.warning(f"Error processing future {row.get('DISPLAY_NAME', 'unknown')}: {e}")
                 continue
 
         logger.info(f"Processed {len(derivative_securities)} derivative securities and {len(futures_data)} futures relationships")
@@ -196,55 +196,57 @@ class DhanService:
         logger.info(f"Validation complete: {len(clean_securities_df)} valid securities, {len(clean_futures_df)} valid futures")
         return clean_securities_df, clean_futures_df
 
-    def fetch_sector_info(self, symbol: str, batch_symbols: List[str] = None) -> Dict[str, Any]:
-        """Fetch sector and industry information for symbols"""
+    def fetch_sector_info(self, symbol: str = None, batch_symbols: List[str] = None) -> Dict[str, Any]:
+        """Fetch sector and industry information for symbols (bulk request)"""
         try:
             url = "https://ow-scanx-analytics.dhan.co/customscan/fetchdt"
 
             if batch_symbols:
-                results = {}
-                for sym in batch_symbols[:50]:  # Limit batch size
-                    try:
-                        result = self._fetch_single_sector_info(url, sym)
-                        if result:
-                            results[sym] = result
-                    except Exception as e:
-                        logger.warning(f"Error fetching sector info for {sym}: {e}")
-                        continue
-                return results
+                return self._fetch_sector_info_bulk(url, batch_symbols)
+            elif symbol:
+                return self._fetch_sector_info_bulk(url, [symbol])
             else:
-                return {symbol: self._fetch_single_sector_info(url, symbol)}
-
+                raise ValidationError("No symbols provided for sector info fetch")
         except Exception as e:
             logger.error(f"Error fetching sector information: {e}")
             raise ExternalAPIError("Dhan", f"Sector info fetch failed: {str(e)}")
 
-    def _fetch_single_sector_info(self, url: str, symbol: str) -> Optional[Dict[str, Any]]:
-        """Fetch sector info for a single symbol"""
+    def _fetch_sector_info_bulk(self, url: str, symbols: List[str]) -> Dict[str, Any]:
+        """Send one POST request for multiple symbols (comma-separated)"""
         try:
-            payload = {"data": {"fields": ["Sector", "SubSector"], "params": [{"field": "Exch", "op": "", "val": "NSE"}, {"field": "Sym", "op": "", "val": symbol}]}}
+            symbol_string = ",".join(symbols)
+            payload = {"data": {"fields": ["Sector", "SubSector"], "params": [{"field": "Exch", "op": "", "val": "NSE"}, {"field": "Sym", "op": "", "val": symbol_string}]}}
+
+            logger.info(f"[Sector Enrichment] Requesting sector info for {len(symbols)} symbols: {symbol_string}")
+            # logger.debug(f"[Sector Enrichment] Payload: {payload}")
 
             response = requests.post(url, json=payload, timeout=60)
             response.raise_for_status()
 
             data = response.json()
+            # logger.debug(f"[Sector Enrichment] Response: {data}")
 
-            if data.get("code") == 0 and data.get("data") and len(data["data"]) > 0:
-                security_data = data["data"][0]
-                return {
-                    'sector': security_data.get("Sector", "").strip(),
-                    'industry': security_data.get("SubSector", "").strip(),
-                    'symbol': security_data.get("DispSym", "").strip(),
-                    'isin': security_data.get("Isin", "").strip(),
+            if data.get("code") != 0 or "data" not in data:
+                raise ExternalAPIError("Dhan", "Invalid response for sector info")
+
+            results = {}
+            for item in data["data"]:
+                sym = item.get("Seosym", "").upper().replace("-", "").replace("LTD", "")
+                results[sym] = {
+                    "sector": item.get("Sector", "").strip(),
+                    "industry": item.get("SubSector", "").strip(),
+                    "symbol": item.get("DispSym", "").strip(),
+                    "isin": item.get("Isin", "").strip(),
                 }
-            else:
-                return None
+
+            logger.info(f"[Sector Enrichment] Received sector info for {len(results)} of {len(symbols)} symbols")
+            return results
 
         except Exception as e:
-            logger.warning(f"Error processing sector data for {symbol}: {e}")
-            return None
+            logger.warning(f"[Sector Enrichment] Error in bulk sector info fetch for symbols {symbols}: {e}")
+            return {}
 
-    def enrich_securities_with_sector_info(self, securities_data: List[Dict[str, Any]], batch_size: int = 10) -> List[Dict[str, Any]]:
+    def enrich_securities_with_sector_info(self, securities_data: List[Dict[str, Any]], batch_size: int = 15) -> List[Dict[str, Any]]:
         """Enrich securities data with sector and industry information"""
         logger.info(f"Enriching {len(securities_data)} securities with sector information")
 
@@ -320,7 +322,7 @@ class DhanService:
         if not row.get("UNDERLYING_SECURITY_ID") or row.get("UNDERLYING_SECURITY_ID") == "NA":
             return False
 
-        if not row.get("UNDERLYING_SYMBOL") or pd.isna(row.get("UNDERLYING_SYMBOL")):
+        if not row.get("SYMBOL_NAME") or pd.isna(row.get("SYMBOL_NAME")):
             return False
 
         return True

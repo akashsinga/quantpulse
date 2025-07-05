@@ -68,10 +68,10 @@ def import_securities_from_dhan(self) -> Dict[str, Any]:
             # Step 5.5: Enrich securities with sector information (optional)
             self.update_state(state='PROGRESS', meta={'current': 32, 'total': 100, 'message': 'Enriching securities with sector information...'})
             try:
-                # Only enrich equity stocks, skip indices and limit to first 100 for performance
+                # Only enrich equity stocks, skip indices
                 equity_securities = [sec for sec in processed_securities if sec['security_type'] == 'STOCK']
                 if equity_securities:
-                    enriched_securities = dhan_service.enrich_securities_with_sector_info(equity_securities, batch_size=5)
+                    enriched_securities = dhan_service.enrich_securities_with_sector_info(equity_securities, batch_size=15)
 
                     # Update the processed securities with enriched data
                     enriched_dict = {sec['symbol']: sec for sec in enriched_securities}
