@@ -1,16 +1,13 @@
 # backend/app/core/celery_base.py
 
-from typing import Any, Dict, Optional, Union
+from typing import Any
 from celery import Task
-from celery.exceptions import Retry, Ignore
-from enum import Enum
 import traceback
-import time
 from datetime import datetime
 
-from app.core.celery_app import celery_app
 from app.utils.enum import TaskStatus
-from app.core.database import get_db
+from app.core.database import init_database
+from app.core.config import settings
 from app.utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -65,15 +62,17 @@ class DatabaseTask(BaseTask):
     def __init__(self):
         super().__init__()
         self._db = None
+        self._db_manager = None
 
     @property
     def db(self):
         """Get database session"""
         if self._db is None:
-            from app.core.database import db_manager
-            if db_manager is None:
-                raise RuntimeError("Database not initialized")
-            self._db = db_manager.SessionLocal()
+            # Initialize database manager if not already done
+            if self._db_manager is None:
+                self._db_manager = init_database(settings.database.DB_URL)
+
+            self._db = self._db_manager.SessionLocal()
         return self._db
 
     def cleanup_db(self):
@@ -95,3 +94,39 @@ class DatabaseTask(BaseTask):
         """Failure callback with DB cleanup"""
         self.cleanup_db()
         super().on_failure(exc, task_id, args, kwargs, einfo)
+
+    def _update_progress(self, current: int, message: str, total: int = 100):
+        """Update both Celery state and TaskRun record"""
+        # Update Celery state
+        self.update_state(state='PROGRESS', meta={'current': current, 'total': total, 'message': message})
+
+        # Update TaskRun record if available
+        try:
+            from app.services.task_service import TaskService
+            task_id = getattr(self.request, 'id', None)
+
+            if task_id:
+                task_service = TaskService(self.db)
+                task_run = task_service.task_run_repo.get_by_celery_id(task_id)
+
+                if task_run:
+                    progress_percentage = current
+                    task_service.task_run_repo.update(task_run, {'status': TaskStatus.PROGRESS, 'progress_percentage': progress_percentage, 'current_message': message})
+        except Exception as e:
+            self.logger.warning(f"Failed to update TaskRun progress: {e}")
+
+    def _update_task_status(self, status: TaskStatus, **update_data):
+        """Update TaskRun status and related fields"""
+        try:
+            from app.services.task_service import TaskService
+            task_id = getattr(self.request, 'id', None)
+
+            if task_id:
+                task_service = TaskService(self.db)
+                task_run = task_service.task_run_repo.get_by_celery_id(task_id)
+
+                if task_run:
+                    update_fields = {'status': status, **update_data}
+                    task_service.task_run_repo.update(task_run, update_fields)
+        except Exception as e:
+            self.logger.warning(f"Failed to update TaskRun status: {e}")

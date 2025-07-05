@@ -17,11 +17,16 @@ class Timeframe(str, PythonEnum):
 
 class SecurityType(str, PythonEnum):
     """Enumeration of security types."""
-    STOCK = "STOCK"
+    EQUITY = "EQUITY"
+    FUTCOM = "FUTCOM"
+    FUTCUR = "FUTCUR"
+    FUTIDX = "FUTIDX"
+    FUTSTK = "FUTSTK"
     INDEX = "INDEX"
-    DERIVATIVE = "DERIVATIVE"
-    ETF = "ETF"
-    BOND = "BOND"
+    OPTCUR = "OPTCUR"
+    OPTIDX = "OPTIDX"
+    OPTSTK = "OPTSTK"
+    OPTCOM = "OPTFUT"  # Commodity Options
 
 
 class SettlementType(str, PythonEnum):
@@ -54,7 +59,7 @@ class ExpiryMonth(str, PythonEnum):
     JUN = "JUN"
     JUL = "JUL"
     AUG = "AUG"
-    SEPT = "SEPT"
+    SEP = "SEP"
     OCT = "OCT"
     NOV = "NOV"
     DEC = "DEC"
