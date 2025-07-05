@@ -8,10 +8,8 @@ import requests
 from datetime import datetime, date
 from typing import List, Dict, Any, Optional
 from dhanhq import dhanhq
-import calendar
-from datetime import timedelta
-from concurrent.futures import ThreadPoolExecutor, as_completed
 import threading
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from app.utils.logger import get_logger
 from app.core.config import settings
@@ -78,8 +76,13 @@ class DhanService:
             return pd.DataFrame()
 
         # Filter for relevant instrument types
-        relevant_instruments = ["ES", "INDEX", "FUTSTK", "FUTIDX", "FUTCOM", "FUTCUR", "OPTSTK", "OPTIDX", "OPTFUT", "OPTCUR"]
-        final_df = filtered_df[filtered_df["INSTRUMENT"].isin(relevant_instruments)]
+        relevant_segments = ["D", "E", "I"]
+        relevant_instruments = ["EQUITY", "INDEX", "FUTSTK", "FUTIDX"]
+        relevant_instrument_types = ["ES", "INDEX", "FUT", "FUTIDX", "FUTSTK"]
+
+        filtered_df = filtered_df[filtered_df["SEGMENT"].isin(relevant_segments)]
+        filtered_df = filtered_df[filtered_df["INSTRUMENT"].isin(relevant_instruments)]
+        final_df = filtered_df[filtered_df["INSTRUMENT_TYPE"].isin(relevant_instrument_types)]
 
         logger.info(f"Filtered {len(final_df)} records from {len(filtered_df)} exchange records using instrument types: {relevant_instruments}")
         return final_df
@@ -109,14 +112,20 @@ class DhanService:
                 # Map instrument type to SecurityType enum
                 security_type = self._map_security_type(row)
 
+                # Use SYMBOL_NAME for derivatives, UNDERLYING_SYMBOL for equities/indices
+                if self._is_derivative(security_type):
+                    symbol = self._safe_strip(row.get("SYMBOL_NAME"))
+                else:
+                    symbol = self._safe_strip(row.get("UNDERLYING_SYMBOL"))
+
                 security_data = {
-                    'symbol': self._safe_strip(row.get("UNDERLYING_SYMBOL")),
+                    'symbol': symbol,
                     'name': self._safe_strip(row.get("DISPLAY_NAME")),
                     'external_id': int(row["SECURITY_ID"]),
                     'exchange_code': self._safe_strip(row.get("EXCH_ID")),
                     'security_type': security_type,
                     'segment': self._map_segment(row),
-                    'isin': self._safe_strip(row.get("ISIN")) if row.get("ISIN") != "NA" else None,
+                    'isin': self._safe_strip(row.get("ISIN")) if row.get("ISIN") not in ["NA", "null", None] else None,
                     'sector': None,  # Will be enriched later
                     'industry': None,  # Will be enriched later
                     'lot_size': self._safe_int(row.get("LOT_SIZE"), 1),
@@ -129,7 +138,7 @@ class DhanService:
                 }
 
                 # Add derivative-specific fields if it's a derivative
-                if security_type in [SecurityType.FUTSTK.value, SecurityType.FUTIDX.value, SecurityType.FUTCOM.value, SecurityType.FUTCUR.value]:
+                if self._is_derivative(security_type):
                     derivative_data = self._extract_derivative_data(row)
                     security_data.update(derivative_data)
 
@@ -146,14 +155,14 @@ class DhanService:
         """Enrich securities data with sector and industry information using parallel processing"""
         logger.info(f"Enriching {len(securities_data)} securities with sector information using {max_workers} workers")
 
-        # Filter securities that have ISIN
-        securities_with_isin = [sec for sec in securities_data if sec.get('isin')]
+        # Filter securities that have ISIN and are EQUITY type
+        securities_with_isin = [sec for sec in securities_data if sec.get('isin') and sec.get('security_type') == SecurityType.EQUITY.value]
 
         if not securities_with_isin:
-            logger.info("No securities with ISIN found, skipping sector enrichment")
+            logger.info("No equity securities with ISIN found, skipping sector enrichment")
             return securities_data
 
-        logger.info(f"Found {len(securities_with_isin)} securities with ISIN for enrichment")
+        logger.info(f"Found {len(securities_with_isin)} equity securities with ISIN for enrichment")
 
         # Group securities by exchange for parallel processing
         securities_by_exchange = {}
@@ -180,13 +189,191 @@ class DhanService:
                     logger.warning(f"Error enriching exchange {exchange_code}: {e}")
 
         # Add back securities without ISIN (unchanged)
-        securities_without_isin = [sec for sec in securities_data if not sec.get('isin')]
+        securities_without_isin = [sec for sec in securities_data if not sec.get('isin') or sec.get('security_type') != SecurityType.EQUITY.value]
         enriched_securities = securities_with_isin + securities_without_isin
 
         enriched_count = sum(1 for sec in enriched_securities if sec.get('sector'))
         logger.info(f"Successfully enriched {enriched_count}/{len(securities_data)} securities with sector information")
 
         return enriched_securities
+
+    def fetch_sector_info(self, symbol: str = None, batch_symbols: List[str] = None, exchange_code: str = "NSE") -> Dict[str, Any]:
+        """Fetch sector and industry information for symbols (bulk request)"""
+        try:
+            url = "https://ow-scanx-analytics.dhan.co/customscan/fetchdt"
+
+            if batch_symbols:
+                return self._fetch_sector_info_bulk(url, batch_symbols, exchange_code)
+            elif symbol:
+                return self._fetch_sector_info_bulk(url, [symbol], exchange_code)
+            else:
+                raise ValidationError("No symbols provided for sector info fetch")
+        except Exception as e:
+            logger.error(f"Error fetching sector information: {e}")
+            raise ExternalAPIError("Dhan", f"Sector info fetch failed: {str(e)}")
+
+    # Private helper methods
+    def _validate_security_row(self, row: Dict) -> bool:
+        """Validate required fields for security"""
+        required_fields = ["SECURITY_ID", "UNDERLYING_SYMBOL", "EXCH_ID", "INSTRUMENT"]
+
+        for field in required_fields:
+            if not row.get(field) or pd.isna(row.get(field)):
+                return False
+
+        try:
+            int(row["SECURITY_ID"])
+        except (ValueError, TypeError):
+            return False
+
+        return True
+
+    def _safe_strip(self, value, default: str = "") -> str:
+        """Safely strip string values, handle floats and NaN"""
+        try:
+            if pd.isna(value) or value in ["NA", "null"]:
+                return default
+            return str(value).strip()
+        except (AttributeError, TypeError):
+            return default
+
+    def _safe_int(self, value, default: int = 1) -> int:
+        """Safely convert value to integer"""
+        try:
+            if pd.isna(value) or value in ["NA", "null"]:
+                return default
+            return int(float(value))
+        except (ValueError, TypeError):
+            return default
+
+    def _map_security_type(self, row: Dict) -> str:
+        """Map Dhan instrument to SecurityType enum"""
+        instrument = row.get("INSTRUMENT", "").upper()
+
+        # Map to SecurityType enum values
+        instrument_mapping = {
+            "EQUITY": SecurityType.EQUITY.value,
+            "INDEX": SecurityType.INDEX.value,
+            "FUTSTK": SecurityType.FUTSTK.value,
+            "FUTIDX": SecurityType.FUTIDX.value,
+            "FUTCOM": SecurityType.FUTCOM.value,
+            "FUTCUR": SecurityType.FUTCUR.value,
+            "OPTSTK": SecurityType.OPTSTK.value,
+            "OPTIDX": SecurityType.OPTIDX.value,
+            "OPTFUT": SecurityType.OPTCOM.value,
+            "OPTCUR": SecurityType.OPTCUR.value,
+        }
+
+        return instrument_mapping.get(instrument, SecurityType.EQUITY.value)
+
+    def _map_segment(self, row: Dict) -> str:
+        """Map Dhan segment to our segment classification"""
+        segment = row.get("SEGMENT", "").upper()
+
+        segment_mapping = {
+            "E": SecuritySegment.EQUITY.value,
+            "D": SecuritySegment.DERIVATIVE.value,
+            "C": SecuritySegment.CURRENCY.value,
+            "M": SecuritySegment.COMMODITY.value,
+            "I": SecuritySegment.INDEX.value,
+        }
+
+        return segment_mapping.get(segment, SecuritySegment.EQUITY.value)
+
+    def _is_derivatives_eligible(self, row: Dict) -> bool:
+        """Check if security is eligible for derivatives trading"""
+        instrument = row.get("INSTRUMENT", "").upper()
+        return instrument == "EQUITY" and self._safe_int(row.get("LOT_SIZE", 1)) >= 1
+
+    def _has_options(self, row: Dict) -> bool:
+        """Check if security has options"""
+        instrument = row.get("INSTRUMENT", "").upper()
+        return instrument in ["OPTSTK", "OPTIDX", "OPTFUT", "OPTCUR"]
+
+    def _has_futures(self, row: Dict) -> bool:
+        """Check if security has futures"""
+        instrument = row.get("INSTRUMENT", "").upper()
+        return instrument in ["FUTSTK", "FUTIDX", "FUTCOM", "FUTCUR"]
+
+    def _is_derivative(self, security_type: str) -> bool:
+        """Check if security type is a derivative"""
+        derivative_types = [SecurityType.FUTSTK.value, SecurityType.FUTIDX.value, SecurityType.FUTCOM.value, SecurityType.FUTCUR.value, SecurityType.OPTSTK.value, SecurityType.OPTIDX.value, SecurityType.OPTCOM.value, SecurityType.OPTCUR.value]
+        return security_type in derivative_types
+
+    def _extract_derivative_data(self, row: Dict[str, Any]) -> Dict[str, Any]:
+        """Extract derivative-specific data for futures and options"""
+        derivative_data = {}
+
+        # Get expiry date from SM_EXPIRY_DATE field
+        expiry_date = self._parse_expiry_date(row.get("SM_EXPIRY_DATE"))
+        if expiry_date:
+            derivative_data['expiration_date'] = expiry_date
+            derivative_data['contract_month'] = self._get_contract_month_from_date(expiry_date)
+        else:
+            derivative_data['expiration_date'] = None
+            derivative_data['contract_month'] = 'UNK'
+
+        # Extract underlying information
+        derivative_data['underlying_symbol'] = self._safe_strip(row.get("UNDERLYING_SYMBOL"))
+        underlying_security_id = row.get("UNDERLYING_SECURITY_ID")
+        if underlying_security_id and underlying_security_id not in ["NA", "null"]:
+            derivative_data['underlying_security_id'] = underlying_security_id
+        else:
+            derivative_data['underlying_security_id'] = None
+
+        # Set settlement type based on instrument
+        instrument = self._safe_strip(row.get("INSTRUMENT")).upper()
+        if instrument in ["FUTIDX", "OPTIDX"]:
+            derivative_data['settlement_type'] = SettlementType.CASH.value
+        else:
+            derivative_data['settlement_type'] = SettlementType.PHYSICAL.value
+
+        # Add option-specific data if it's an option
+        if instrument.startswith("OPT"):
+            derivative_data['strike_price'] = self._safe_float(row.get("STRIKE_PRICE"))
+            derivative_data['option_type'] = self._safe_strip(row.get("OPTION_TYPE"))
+
+        return derivative_data
+
+    def _parse_expiry_date(self, expiry_str: str) -> Optional[date]:
+        """Parse expiry date using datetime.strptime for multiple formats"""
+        if not expiry_str or expiry_str in ["NA", "null", "########"]:
+            return None
+
+        # List of possible date formats
+        date_formats = [
+            "%Y-%m-%d",  # 2024-08-28
+            "%d-%m-%Y",  # 30-09-2025
+            "%Y/%m/%d",  # 2024/08/28
+            "%d/%m/%Y",  # 30/09/2025
+        ]
+
+        for date_format in date_formats:
+            try:
+                parsed_date = datetime.strptime(expiry_str.strip(), date_format)
+                return parsed_date.date()
+            except ValueError:
+                continue
+
+        logger.debug(f"Could not parse expiry date '{expiry_str}' with any known format")
+        return None
+
+    def _get_contract_month_from_date(self, expiry_date: date) -> str:
+        """Get contract month from expiry date"""
+        try:
+            month_mapping = {1: 'JAN', 2: 'FEB', 3: 'MAR', 4: 'APR', 5: 'MAY', 6: 'JUN', 7: 'JUL', 8: 'AUG', 9: 'SEP', 10: 'OCT', 11: 'NOV', 12: 'DEC'}
+            return month_mapping.get(expiry_date.month, 'UNK')
+        except Exception:
+            return 'UNK'
+
+    def _safe_float(self, value, default: float = 0.0) -> float:
+        """Safely convert value to float"""
+        try:
+            if pd.isna(value) or value in ["NA", "null"]:
+                return default
+            return float(value)
+        except (ValueError, TypeError):
+            return default
 
     def _enrich_exchange_securities(self, exchange_code: str, exchange_securities: List[Dict[str, Any]], batch_size: int):
         """Enrich securities for a single exchange"""
@@ -224,192 +411,6 @@ class DhanService:
                 logger.warning(f"Error enriching batch {i//batch_size + 1} for exchange {exchange_code}: {e}")
                 continue
 
-    def fetch_sector_info(self, symbol: str = None, batch_symbols: List[str] = None, exchange_code: str = "NSE") -> Dict[str, Any]:
-        """Fetch sector and industry information for symbols (bulk request)"""
-        try:
-            url = "https://ow-scanx-analytics.dhan.co/customscan/fetchdt"
-
-            if batch_symbols:
-                return self._fetch_sector_info_bulk(url, batch_symbols, exchange_code)
-            elif symbol:
-                return self._fetch_sector_info_bulk(url, [symbol], exchange_code)
-            else:
-                raise ValidationError("No symbols provided for sector info fetch")
-        except Exception as e:
-            logger.error(f"Error fetching sector information: {e}")
-            raise ExternalAPIError("Dhan", f"Sector info fetch failed: {str(e)}")
-
-    def get_statistics(self, df: pd.DataFrame) -> Dict[str, Any]:
-        """Get statistics about the processed data"""
-        stats = {'total_securities': len(df), 'securities_by_exchange': {}, 'securities_by_segment': {}, 'securities_by_instrument': {}}
-
-        if len(df) > 0:
-            stats['securities_by_exchange'] = df['EXCH_ID'].value_counts().to_dict()
-            stats['securities_by_segment'] = df['SEGMENT'].value_counts().to_dict()
-            stats['securities_by_instrument'] = df['INSTRUMENT'].value_counts().to_dict()
-
-        return stats
-
-    # Private helper methods
-    def _validate_security_row(self, row: Dict) -> bool:
-        """Validate required fields for security"""
-        required_fields = ["SECURITY_ID", "UNDERLYING_SYMBOL", "EXCH_ID", "INSTRUMENT"]
-
-        for field in required_fields:
-            if not row.get(field) or pd.isna(row.get(field)):
-                return False
-
-        try:
-            int(row["SECURITY_ID"])
-        except (ValueError, TypeError):
-            return False
-
-        return True
-
-    def _safe_strip(self, value, default: str = "") -> str:
-        """Safely strip string values, handle floats and NaN"""
-        try:
-            if pd.isna(value):
-                return default
-            return str(value).strip()
-        except (AttributeError, TypeError):
-            return default
-
-    def _map_security_type(self, row: Dict) -> str:
-        """Map Dhan instrument to SecurityType enum"""
-        instrument = row.get("INSTRUMENT", "").upper()
-
-        # Map to SecurityType enum values
-        instrument_mapping = {
-            "ES": SecurityType.EQUITY.value,
-            "INDEX": SecurityType.INDEX.value,
-            "FUTSTK": SecurityType.FUTSTK.value,
-            "FUTIDX": SecurityType.FUTIDX.value,
-            "FUTCOM": SecurityType.FUTCOM.value,
-            "FUTCUR": SecurityType.FUTCUR.value,
-            "OPTSTK": SecurityType.OPTSTK.value,
-            "OPTIDX": SecurityType.OPTIDX.value,
-            "OPTFUT": SecurityType.OPTCOM.value,
-            "OPTCUR": SecurityType.OPTCUR.value,
-        }
-
-        return instrument_mapping.get(instrument, SecurityType.EQUITY.value)
-
-    def _map_segment(self, row: Dict) -> str:
-        """Map Dhan segment to our segment classification"""
-        segment = row.get("SEGMENT", "").upper()
-
-        segment_mapping = {
-            "E": SecuritySegment.EQUITY.value,
-            "D": SecuritySegment.DERIVATIVE.value,
-            "C": SecuritySegment.CURRENCY.value,
-            "M": SecuritySegment.COMMODITY.value,
-            "I": SecuritySegment.INDEX.value,
-        }
-
-        return segment_mapping.get(segment, SecuritySegment.EQUITY.value)
-
-    def _safe_int(self, value, default: int = 1) -> int:
-        """Safely convert value to integer"""
-        try:
-            if pd.isna(value):
-                return default
-            return int(float(value))
-        except (ValueError, TypeError):
-            return default
-
-    def _is_derivatives_eligible(self, row: Dict) -> bool:
-        """Check if security is eligible for derivatives trading"""
-        instrument = row.get("INSTRUMENT", "").upper()
-        return instrument in ["ES"] and self._safe_int(row.get("LOT_SIZE", 1)) >= 1
-
-    def _has_options(self, row: Dict) -> bool:
-        """Check if security has options"""
-        instrument = row.get("INSTRUMENT", "").upper()
-        return instrument in ["OPTSTK", "OPTIDX", "OPTFUT", "OPTCUR"]
-
-    def _has_futures(self, row: Dict) -> bool:
-        """Check if security has futures"""
-        instrument = row.get("INSTRUMENT", "").upper()
-        return instrument in ["FUTSTK", "FUTIDX", "FUTCOM", "FUTCUR"]
-
-    def _extract_derivative_data(self, row: Dict[str, Any]) -> Dict[str, Any]:
-        """Extract derivative-specific data for futures and options"""
-        derivative_data = {}
-
-        symbol = self._safe_strip(row.get("SYMBOL_NAME"))
-        if symbol:
-            # Extract expiry information
-            derivative_data['expiration_date'] = self._parse_expiry_from_symbol(symbol)
-            derivative_data['contract_month'] = self._extract_contract_month(symbol)
-
-            # Extract underlying information
-            derivative_data['underlying_symbol'] = self._safe_strip(row.get("UNDERLYING_SYMBOL"))
-            derivative_data['underlying_security_id'] = row.get("UNDERLYING_SECURITY_ID") if row.get("UNDERLYING_SECURITY_ID") != "NA" else None
-
-            # Set settlement type based on instrument
-            instrument = self._safe_strip(row.get("INSTRUMENT")).upper()
-            if instrument in ["FUTIDX", "OPTIDX"]:
-                derivative_data['settlement_type'] = SettlementType.CASH.value
-            else:
-                derivative_data['settlement_type'] = SettlementType.PHYSICAL.value
-
-        return derivative_data
-
-    def _extract_month_year_from_symbol(self, symbol: str) -> tuple[Optional[str], Optional[int]]:
-        """Extract month and year from symbol. Returns (month, year) or (None, None)"""
-        try:
-            import re
-            # Find month-year pattern anywhere in the symbol
-            match = re.search(r'([A-Za-z]{3})(\d{4})', symbol)
-            if match:
-                month_str = match.group(1).upper()
-                year = int(match.group(2))
-
-                # Validate month using enum
-                try:
-                    ExpiryMonth(month_str)
-                    return month_str, year
-                except ValueError:
-                    return None, None
-            return None, None
-        except Exception:
-            return None, None
-
-    def _extract_contract_month(self, symbol: str) -> str:
-        """Extract contract month from symbol"""
-        month, _ = self._extract_month_year_from_symbol(symbol)
-        return month or "UNK"
-
-    def _parse_expiry_from_symbol(self, symbol: str) -> Optional[date]:
-        """Extract expiry date from symbol"""
-        month, year = self._extract_month_year_from_symbol(symbol)
-        if not month or not year:
-            return None
-
-        # Month mapping for date calculation
-        month_map = {'JAN': 1, 'FEB': 2, 'MAR': 3, 'APR': 4, 'MAY': 5, 'JUN': 6, 'JUL': 7, 'AUG': 8, 'SEP': 9, 'OCT': 10, 'NOV': 11, 'DEC': 12}
-
-        month_num = month_map.get(month)
-        if month_num:
-            return self._get_last_thursday_of_month(year, month_num)
-        return None
-
-    def _get_last_thursday_of_month(self, year: int, month: int) -> date:
-        """Get the last Thursday of the given month and year"""
-        # Get the last day of the month
-        last_day = calendar.monthrange(year, month)[1]
-        last_date = date(year, month, last_day)
-
-        # Find the last Thursday
-        # Thursday is weekday 3 (Monday=0, Sunday=6)
-        days_back = (last_date.weekday() - 3) % 7
-        if days_back == 0 and last_date.weekday() != 3:
-            days_back = 7
-
-        last_thursday = last_date - timedelta(days=days_back)
-        return last_thursday
-
     def _fetch_sector_info_bulk(self, url: str, symbols: List[str], exchange_code: str = "NSE") -> Dict[str, Any]:
         """Send one POST request for multiple symbols (comma-separated)"""
         try:
@@ -430,12 +431,7 @@ class DhanService:
             for item in data["data"]:
                 api_isin = item.get("Isin", "").strip()
                 if api_isin:
-                    results[api_isin] = {
-                        "sector": item.get("Sector", "").strip(),
-                        "industry": item.get("SubSector", "").strip(),
-                        "symbol": item.get("DispSym", "").strip(),
-                        "isin": api_isin,
-                    }
+                    results[api_isin] = {"sector": item.get("Sector", "").strip(), "industry": item.get("SubSector", "").strip(), "symbol": item.get("DispSym", "").strip(), "isin": api_isin}
 
             logger.info(f"[Sector Enrichment] Received sector info for {len(results)} securities from {exchange_code}")
             return results
