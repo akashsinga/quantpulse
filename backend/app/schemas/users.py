@@ -17,6 +17,20 @@ class UserBase(BaseModel):
     full_name: Optional[str] = None
 
 
+class UserPreferencesBase(BaseResponseSchema):
+    theme: str
+    language: str
+    currency: str
+    preferred_timeline: str
+    email_notifications: bool
+    signal_notifications: bool
+    portfolio_alerts: bool
+    system_notifications: bool
+
+    class Config:
+        from_attributes = True
+
+
 class UserCreate(UserBase):
     """Schema for user creation"""
     password: str = Field(..., min_length=8, max_length=128)
@@ -59,6 +73,7 @@ class UserResponse(BaseResponseSchema):
     email: EmailStr
     full_name: str
     is_active: bool
+    preferences: Optional[UserPreferencesBase] = None
     created_at: datetime
     updated_at: datetime
 

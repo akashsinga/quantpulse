@@ -10,9 +10,8 @@ from app.core.database import get_db
 from app.api.dependencies import get_current_active_user
 from app.services.task_service import TaskService
 from app.repositories.securities import SecurityRepository, ExchangeRepository, FutureRepository
-from app.repositories.tasks import TaskRunRepository
 from app.schemas.base import APIResponse, PaginatedResponse, PaginationMeta
-from app.schemas.security import SecurityResponse, ExchangeResponse, FutureResponse, ImportRequest, ImportStatusResponse
+from app.schemas.security import SecurityResponse, ExchangeResponse, FutureResponse, ImportStatusResponse
 from app.tasks.import_securities import import_securities_from_dhan
 from app.utils.enum import TaskType
 from app.utils.logger import get_logger
@@ -21,7 +20,7 @@ router = APIRouter()
 logger = get_logger(__name__)
 
 
-@router.get("/", response_model=PaginatedResponse[SecurityResponse])
+@router.get("", response_model=PaginatedResponse[SecurityResponse])
 async def get_securities(skip: int = 0, limit: int = 100, exchange_id: Optional[UUID] = None, security_type: Optional[str] = None, segment: Optional[str] = None, sector: Optional[str] = None, active_only: bool = True, db: Session = Depends(get_db), current_user=Depends(get_current_active_user)):
     """Get list of securities with filtering and pagination."""
     try:
@@ -106,7 +105,7 @@ async def get_security(security_id: UUID, db: Session = Depends(get_db), current
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Security not found")
 
 
-@router.get("/exchanges/", response_model=APIResponse[List[ExchangeResponse]])
+@router.get("/exchanges", response_model=APIResponse[List[ExchangeResponse]])
 async def get_exchanges(active_only: bool = True, db: Session = Depends(get_db), current_user=Depends(get_current_active_user)):
     """Get list of all exchanges."""
     try:
@@ -126,7 +125,7 @@ async def get_exchanges(active_only: bool = True, db: Session = Depends(get_db),
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to retrieve exchanges")
 
 
-@router.get("/futures/", response_model=PaginatedResponse[FutureResponse])
+@router.get("/futures", response_model=PaginatedResponse[FutureResponse])
 async def get_futures(skip: int = 0, limit: int = 100, underlying_id: Optional[UUID] = None, contract_month: Optional[str] = None, active_only: bool = True, db: Session = Depends(get_db), current_user=Depends(get_current_active_user)):
     """Get list of futures contracts."""
     try:
@@ -155,7 +154,7 @@ async def get_futures(skip: int = 0, limit: int = 100, underlying_id: Optional[U
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to retrieve futures")
 
 
-@router.post("/import/", response_model=APIResponse[ImportStatusResponse])
+@router.post("/import", response_model=APIResponse[ImportStatusResponse])
 async def import_securities(db: Session = Depends(get_db), current_user=Depends(get_current_active_user)):
     """
     Start securities import from Dhan CSV.
