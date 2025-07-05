@@ -149,32 +149,36 @@ class SecurityService:
                             'has_futures': security_data['has_futures'],
                             'exchange_id': exchange.id,
                         }
-                        security_repo.update(existing_security, update_data)
+                        updated_security = security_repo.update(existing_security, update_data)
                         stats['updated'] += 1
+                        current_security = updated_security
 
                     else:
                         # Create new security using repository
-                        security_repo.create_security(symbol=security_data['symbol'],
-                                                      name=security_data['name'],
-                                                      exchange_id=exchange.id,
-                                                      external_id=security_data['external_id'],
-                                                      security_type=security_data['security_type'],
-                                                      segment=security_data['segment'],
-                                                      isin=security_data.get('isin'),
-                                                      sector=security_data.get('sector'),
-                                                      industry=security_data.get('industry'),
-                                                      lot_size=security_data['lot_size'],
-                                                      tick_size=security_data['tick_size'],
-                                                      is_active=security_data['is_active'],
-                                                      is_tradeable=security_data['is_tradeable'],
-                                                      is_derivatives_eligible=security_data['is_derivatives_eligible'],
-                                                      has_options=security_data['has_options'],
-                                                      has_futures=security_data['has_futures'])
+                        new_security = security_repo.create_security(symbol=security_data['symbol'],
+                                                                     name=security_data['name'],
+                                                                     exchange_id=exchange.id,
+                                                                     external_id=security_data['external_id'],
+                                                                     security_type=security_data['security_type'],
+                                                                     segment=security_data['segment'],
+                                                                     isin=security_data.get('isin'),
+                                                                     sector=security_data.get('sector'),
+                                                                     industry=security_data.get('industry'),
+                                                                     lot_size=security_data['lot_size'],
+                                                                     tick_size=security_data['tick_size'],
+                                                                     is_active=security_data['is_active'],
+                                                                     is_tradeable=security_data['is_tradeable'],
+                                                                     is_derivatives_eligible=security_data['is_derivatives_eligible'],
+                                                                     has_options=security_data['has_options'],
+                                                                     has_futures=security_data['has_futures'])
                         stats['created'] += 1
+                        current_security = new_security
 
-                    # Collect derivative securities for second pass
+                    # Collect derivative securities with security_id for second pass
                     if self._is_future_security(security_data['security_type']):
-                        derivative_securities_data.append(security_data)
+                        derivative_data = security_data.copy()
+                        derivative_data['security_id'] = current_security.id
+                        derivative_securities_data.append(derivative_data)
 
                 except Exception as e:
                     logger.warning(f"Error processing security {security_data.get('symbol', 'unknown')} in {exchange_code}: {e}")
@@ -186,15 +190,21 @@ class SecurityService:
             return stats, derivative_securities_data
 
     def _process_derivatives_sequential(self, derivative_securities_data: List[Dict[str, Any]], exchange_cache: Dict[str, Exchange]) -> Dict[str, int]:
-        """Process derivative relationships sequentially (safer than parallel)"""
+        """Process derivative relationships sequentially - now with security IDs"""
         stats = {'created': 0, 'updated': 0, 'skipped': 0, 'errors': 0}
 
         for security_data in derivative_securities_data:
             try:
-                # Find the security we just created/updated
-                derivative_security = self.security_repo.get_by_external_id(security_data['external_id'])
+                # Use the security_id directly instead of looking up by external_id
+                security_id = security_data.get('security_id')
+                if not security_id:
+                    logger.warning(f"No security_id found for derivative: {security_data.get('symbol', 'unknown')}")
+                    stats['skipped'] += 1
+                    continue
+
+                derivative_security = self.security_repo.get_by_id(security_id)
                 if not derivative_security:
-                    logger.warning(f"Derivative security not found for external_id: {security_data['external_id']}")
+                    logger.warning(f"Derivative security not found for ID: {security_id}")
                     stats['skipped'] += 1
                     continue
 
@@ -265,17 +275,18 @@ class SecurityService:
     def _find_underlying_security(self, security_data: Dict[str, Any], exchange_cache: Dict[str, Exchange]) -> Optional[Security]:
         """Find underlying security for a derivative"""
 
-        # Strategy 1: Use underlying_security_id if available
+        # Strategy 1: Use underlying_security_id if available (most reliable)
         underlying_security_id = security_data.get('underlying_security_id')
         if underlying_security_id:
             try:
                 underlying = self.security_repo.get_by_external_id(int(underlying_security_id))
                 if underlying:
+                    logger.debug(f"Found underlying by security_id: {underlying.symbol}")
                     return underlying
-            except (ValueError, TypeError):
-                pass
+            except (ValueError, TypeError) as e:
+                logger.debug(f"Could not convert underlying_security_id to int: {underlying_security_id}, error: {e}")
 
-        # Strategy 2: Use underlying symbol
+        # Strategy 2: Use underlying symbol (fallback)
         underlying_symbol = security_data.get('underlying_symbol')
         if underlying_symbol:
             # Try to find by symbol in the same exchange first
@@ -285,11 +296,13 @@ class SecurityService:
                 if exchange:
                     underlying = self.security_repo.get_by_symbol(underlying_symbol, exchange.id)
                     if underlying:
+                        logger.debug(f"Found underlying by symbol in same exchange: {underlying.symbol}")
                         return underlying
 
             # If not found in same exchange, try any exchange
             underlying = self.security_repo.get_by_symbol(underlying_symbol)
             if underlying:
+                logger.debug(f"Found underlying by symbol in any exchange: {underlying.symbol}")
                 return underlying
 
             # Try common variations for indices
@@ -299,8 +312,10 @@ class SecurityService:
                 for variation in variations:
                     underlying = self.security_repo.get_by_symbol(variation)
                     if underlying:
+                        logger.debug(f"Found underlying by symbol variation: {underlying.symbol}")
                         return underlying
 
+        logger.debug(f"Could not find underlying for derivative with underlying_symbol: {underlying_symbol}, underlying_security_id: {underlying_security_id}")
         return None
 
     def mark_expired_futures_inactive(self) -> int:

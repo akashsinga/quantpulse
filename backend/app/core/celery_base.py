@@ -18,7 +18,7 @@ class BaseTask(Task):
     Base task class with common functionality for all QuantPulse tasks.
     Provides error handling, logging, progress tracking.
     """
-    autoretry_for = (Exception, )
+    autoretry_for = ()
     retry_kwargs = {'max_retries': 3, 'countdown': 60}
     retry_backoff = True
     retry_backoff_max = 700

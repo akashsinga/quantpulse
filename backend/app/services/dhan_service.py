@@ -1,6 +1,7 @@
 # backend/app/services/dhan_service.py
 """
 Service to handle Dhan related operations from Securities Import to OHLCV Import.
+Updated to work with actual Dhan CSV structure.
 """
 
 import pandas as pd
@@ -101,6 +102,10 @@ class DhanService:
 
     def process_securities_data(self, securities_df: pd.DataFrame) -> List[Dict[str, Any]]:
         """Process securities DataFrame into standardized format for database insertion"""
+
+        # First pass: Build derivatives mapping
+        derivatives_map = self._build_derivatives_mapping(securities_df)
+
         processed_securities = []
 
         for index, row in securities_df.iterrows():
@@ -115,8 +120,10 @@ class DhanService:
                 # Use SYMBOL_NAME for derivatives, UNDERLYING_SYMBOL for equities/indices
                 if self._is_derivative(security_type):
                     symbol = self._safe_strip(row.get("SYMBOL_NAME"))
+                    underlying_symbol = self._safe_strip(row.get("UNDERLYING_SYMBOL"))
                 else:
                     symbol = self._safe_strip(row.get("UNDERLYING_SYMBOL"))
+                    underlying_symbol = symbol
 
                 security_data = {
                     'symbol': symbol,
@@ -132,10 +139,20 @@ class DhanService:
                     'tick_size': str(row.get("TICK_SIZE", "0.05")),
                     'is_active': True,
                     'is_tradeable': True,
-                    'is_derivatives_eligible': self._is_derivatives_eligible(row),
-                    'has_options': self._has_options(row),
-                    'has_futures': self._has_futures(row),
                 }
+
+                # Set derivative flags based on security type
+                if self._is_derivative(security_type):
+                    # Derivatives themselves don't have derivative flags
+                    security_data.update({
+                        'is_derivatives_eligible': False,
+                        'has_options': False,
+                        'has_futures': False,
+                    })
+                else:
+                    # Only underlying securities get derivative flags from the mapping
+                    derivative_flags = derivatives_map.get(underlying_symbol, {'has_futures': False, 'has_options': False, 'is_derivatives_eligible': False})
+                    security_data.update(derivative_flags)
 
                 # Add derivative-specific fields if it's a derivative
                 if self._is_derivative(security_type):
@@ -150,6 +167,46 @@ class DhanService:
 
         logger.info(f"Processed {len(processed_securities)} securities from {len(securities_df)} records")
         return processed_securities
+
+    def _build_derivatives_mapping(self, securities_df: pd.DataFrame) -> Dict[str, Dict[str, bool]]:
+        """Build mapping of which underlyings have futures/options"""
+        derivatives_map = {}
+
+        for index, row in securities_df.iterrows():
+            try:
+                instrument = row.get("INSTRUMENT", "").upper()
+                underlying_symbol = self._safe_strip(row.get("UNDERLYING_SYMBOL"))
+
+                if not underlying_symbol:
+                    continue
+
+                # Initialize if not exists
+                if underlying_symbol not in derivatives_map:
+                    derivatives_map[underlying_symbol] = {'has_futures': False, 'has_options': False, 'is_derivatives_eligible': False}
+
+                # Check for futures
+                if instrument in ["FUTSTK", "FUTIDX", "FUTCOM", "FUTCUR"]:
+                    derivatives_map[underlying_symbol]['has_futures'] = True
+
+                # Check for options
+                if instrument in ["OPTSTK", "OPTIDX", "OPTFUT", "OPTCUR"]:
+                    derivatives_map[underlying_symbol]['has_options'] = True
+
+            except Exception as e:
+                logger.debug(f"Error processing derivatives mapping for row: {e}")
+                continue
+
+        # Set is_derivatives_eligible based on whether security has futures OR options
+        for underlying_symbol, flags in derivatives_map.items():
+            flags['is_derivatives_eligible'] = flags['has_futures'] or flags['has_options']
+
+        eligible_count = sum(1 for flags in derivatives_map.values() if flags['is_derivatives_eligible'])
+        futures_count = sum(1 for flags in derivatives_map.values() if flags['has_futures'])
+        options_count = sum(1 for flags in derivatives_map.values() if flags['has_options'])
+
+        logger.info(f"Derivatives mapping: {eligible_count} derivatives-eligible, {futures_count} with futures, {options_count} with options")
+
+        return derivatives_map
 
     def enrich_securities_with_sector_info(self, securities_data: List[Dict[str, Any]], batch_size: int = 15, max_workers: int = 3) -> List[Dict[str, Any]]:
         """Enrich securities data with sector and industry information using parallel processing"""
@@ -211,6 +268,17 @@ class DhanService:
         except Exception as e:
             logger.error(f"Error fetching sector information: {e}")
             raise ExternalAPIError("Dhan", f"Sector info fetch failed: {str(e)}")
+
+    def get_statistics(self, df: pd.DataFrame) -> Dict[str, Any]:
+        """Get statistics about the processed data"""
+        stats = {'total_securities': len(df), 'securities_by_exchange': {}, 'securities_by_segment': {}, 'securities_by_instrument': {}}
+
+        if len(df) > 0:
+            stats['securities_by_exchange'] = df['EXCH_ID'].value_counts().to_dict()
+            stats['securities_by_segment'] = df['SEGMENT'].value_counts().to_dict()
+            stats['securities_by_instrument'] = df['INSTRUMENT'].value_counts().to_dict()
+
+        return stats
 
     # Private helper methods
     def _validate_security_row(self, row: Dict) -> bool:
@@ -279,21 +347,6 @@ class DhanService:
         }
 
         return segment_mapping.get(segment, SecuritySegment.EQUITY.value)
-
-    def _is_derivatives_eligible(self, row: Dict) -> bool:
-        """Check if security is eligible for derivatives trading"""
-        instrument = row.get("INSTRUMENT", "").upper()
-        return instrument == "EQUITY" and self._safe_int(row.get("LOT_SIZE", 1)) >= 1
-
-    def _has_options(self, row: Dict) -> bool:
-        """Check if security has options"""
-        instrument = row.get("INSTRUMENT", "").upper()
-        return instrument in ["OPTSTK", "OPTIDX", "OPTFUT", "OPTCUR"]
-
-    def _has_futures(self, row: Dict) -> bool:
-        """Check if security has futures"""
-        instrument = row.get("INSTRUMENT", "").upper()
-        return instrument in ["FUTSTK", "FUTIDX", "FUTCOM", "FUTCUR"]
 
     def _is_derivative(self, security_type: str) -> bool:
         """Check if security type is a derivative"""
