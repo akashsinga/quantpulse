@@ -2,6 +2,7 @@ import { defineStore } from "pinia";
 
 const state = () => ({
     user: {},
+    userProfile: {},
     token: null,
     tokenType: "Bearer",
     isLoading: false,
@@ -26,6 +27,8 @@ const actions = {
 
             const response = await this.$http.post('/api/v1/auth/login', formData, { headers: { 'Content-Type': 'multipart/form-data' } })
 
+            await this.fetchCurrentUserProfile()
+
             this.setAuthData({ token: response.data.access_token, tokenType: response.data.tokenType, expiresAt: response.data.expires_at, user: response.data.user })
 
             return { error: false, data: response.data }
@@ -34,6 +37,20 @@ const actions = {
             this.error = errorMessage
         } finally {
             this.isLoading = false
+        }
+    },
+
+    /**
+     * Fetches current user profiled details and stores in state.
+     */
+    fetchCurrentUserProfile: async function () {
+        try {
+            const response = await this.$http.get(`/api/v1/auth/profile`)
+            this.userProfile = response.data.data
+            return { error: false, data: response.data }
+        } catch (error) {
+            this.userProfile = {}
+            return { error: true, data: error }
         }
     },
 
