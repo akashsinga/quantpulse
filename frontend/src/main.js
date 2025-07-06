@@ -8,16 +8,15 @@ import QuantPulse from '@/assets/styles/themes/index'
 import App from './App.vue'
 import router from './router'
 import plugins from '@/plugins'
+import { i18n } from './i18n'
 import { $http, $lodash } from '@/plugins'
 
 const app = createApp(App)
 const pinia = createPinia()
 
-pinia.use(({ store }) => {
-    store.$http = $http
-    store.$lodash = $lodash
-})
+pinia.use(({ store }) => { store.$http = $http; store.$lodash = $lodash })
 
+app.use(i18n)
 app.use(pinia)
 app.use(router)
 app.use(plugins)
