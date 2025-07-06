@@ -18,15 +18,15 @@
 @layer base {
     html {
         font-family: 'Geist', system-ui, sans-serif;
-        @apply scroll-smooth;
-        @apply text-gray-800;
+        @apply qp-scroll-smooth;
+        @apply qp-text-gray-800;
     }
 
     body {
-        @apply min-h-screen w-full overflow-x-hidden;
+        @apply qp-min-h-screen qp-w-full qp-overflow-x-hidden;
     }
 
     #app {
-        @apply flex flex-col min-h-screen;
+        @apply qp-flex qp-flex-col qp-min-h-screen;
     }
 }
