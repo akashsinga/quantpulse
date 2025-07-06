@@ -1,107 +1,104 @@
 <template>
-    <div class="min-h-screen flex items-center justify-center relative overflow-hidden bg-white text-slate-900">
+    <div class="qp-min-h-screen qp-flex qp-items-center qp-justify-center qp-relative qp-overflow-hidden qp-bg-white qp-text-slate-900">
         <!-- Background Design -->
-        <div class="fixed inset-0 z-0 pointer-events-none">
-            <div class="absolute inset-0 bg-white"></div>
-            <div class="absolute inset-0 dot-pattern opacity-40"></div>
-            <div class="absolute top-10 left-10 w-64 h-64 bg-blue-200 rounded-full opacity-30 blur-3xl animate-float-slow"></div>
-            <div class="absolute bottom-20 right-20 w-56 h-56 bg-slate-200 rounded-full opacity-35 blur-3xl animate-float-slow-reverse"></div>
-            <div class="absolute top-1/3 right-1/4 w-48 h-48 bg-blue-100 rounded-full opacity-25 blur-2xl animate-float-slower"></div>
+        <div class="qp-fixed qp-inset-0 qp-z-0 qp-pointer-events-none">
+            <div class="qp-absolute qp-inset-0 qp-bg-white"></div>
+            <div class="qp-absolute qp-inset-0 dot-pattern qp-opacity-40"></div>
+            <div class="qp-absolute qp-top-10 qp-left-10 qp-w-64 qp-h-64 qp-bg-blue-200 qp-rounded-full qp-opacity-30 qp-blur-3xl animate-float-slow"></div>
+            <div class="qp-absolute qp-bottom-20 qp-right-20 qp-w-56 qp-h-56 qp-bg-slate-200 qp-rounded-full qp-opacity-35 qp-blur-3xl animate-float-slow-reverse"></div>
+            <div class="qp-absolute qp-top-1/3 qp-right-1/4 qp-w-48 qp-h-48 qp-bg-blue-100 qp-rounded-full qp-opacity-25 qp-blur-2xl animate-float-slower"></div>
         </div>
 
         <!-- Auth Layout Container -->
-        <div class="relative z-10 w-full max-w-6xl mx-auto p-4">
-            <div class="grid grid-cols-1 lg:grid-cols-2 bg-white/90 backdrop-blur-lg border border-slate-200 rounded-3xl overflow-hidden">
+        <div class="qp-relative qp-z-10 qp-w-full qp-max-w-6xl qp-mx-auto qp-p-4">
+            <div class="qp-grid qp-grid-cols-1 lg:qp-grid-cols-2 qp-bg-white/90 qp-backdrop-blur-lg qp-border qp-border-slate-200 qp-rounded-3xl qp-overflow-hidden">
 
                 <!-- Left Panel (Brand) -->
-                <div class="hidden lg:flex flex-col justify-center px-12 py-16 space-y-8 border-r border-slate-200 bg-gradient-to-br from-white/90 to-slate-50/90">
+                <div class="qp-hidden lg:qp-flex qp-flex-col qp-justify-center qp-px-12 qp-py-16 qp-space-y-8 qp-border-r qp-border-slate-200 qp-bg-gradient-to-br qp-from-white/90 qp-to-slate-50/90">
                     <!-- Logo & Brand -->
-                    <div class="flex items-center space-x-4">
-                        <div class="w-12 h-12 bg-slate-900 rounded-xl flex items-center justify-center">
-                            <img src="@/assets/images/favicon.svg" alt="QuantPulse" class="w-7 h-7">
+                    <div class="qp-flex qp-items-center qp-space-x-4">
+                        <div class="qp-w-12 qp-h-12 qp-bg-slate-900 qp-rounded-xl qp-flex qp-items-center qp-justify-center">
+                            <img src="@/assets/images/favicon.svg" alt="QuantPulse" class="qp-w-7 qp-h-7">
                         </div>
-                        <div class="flex flex-col">
-                            <span class="text-2xl font-bold text-slate-900">QuantPulse</span>
-                            <div class="inline-flex items-center px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 text-xs font-medium w-fit">
-                                <div class="w-1.5 h-1.5 bg-blue-500 rounded-full mr-1.5"></div>
-                                AI-Powered
+                        <div class="qp-flex qp-flex-col">
+                            <span class="qp-text-2xl qp-font-bold qp-text-slate-900">QuantPulse</span>
+                            <div class="qp-inline-flex qp-items-center qp-px-2 qp-py-0.5 qp-rounded-full qp-bg-slate-100 qp-text-slate-700 qp-text-xs qp-font-medium qp-w-fit">
+                                <div class="qp-w-1.5 qp-h-1.5 qp-bg-blue-500 qp-rounded-full qp-mr-1.5"></div>
+                                {{ landingPageI18n.heroSection.aiPoweredTradingPlatform }}
                             </div>
                         </div>
                     </div>
 
                     <!-- Tagline -->
-                    <h2 class="text-3xl font-bold text-slate-900 leading-tight max-w-sm">
-                        Where Data Becomes <span class="text-blue-600">Alpha</span>
+                    <h2 class="qp-text-3xl qp-font-bold qp-text-slate-900 qp-leading-tight qp-max-w-sm">
+                        {{ landingPageI18n.heroSection.whereDataBecomes }} <span class="qp-text-blue-600">{{ landingPageI18n.heroSection.alpha }}</span>
                     </h2>
 
                     <!-- Description -->
-                    <p class="text-sm text-slate-600 leading-relaxed max-w-md">
-                        Advanced quantitative research and backtesting platform powered by machine learning.
-                        Develop strategies, analyze performance, and enhance your trading research workflow.
-                    </p>
+                    <p class="qp-text-sm qp-text-slate-600 qp-leading-relaxed qp-max-w-md">{{ landingPageI18n.heroSection.subtitle }}</p>
 
                     <!-- Key Features -->
-                    <div class="space-y-4 max-w-md">
-                        <div class="flex items-center space-x-3 text-slate-600">
-                            <div class="w-8 h-8 rounded-lg bg-slate-900 flex items-center justify-center">
-                                <i class="ph ph-pulse text-white text-sm"></i>
+                    <div class="qp-space-y-4 qp-max-w-md">
+                        <div class="qp-flex qp-items-center qp-space-x-3 qp-text-slate-600">
+                            <div class="qp-w-8 qp-h-8 qp-rounded-lg qp-bg-slate-900 qp-flex qp-items-center qp-justify-center">
+                                <i class="ph ph-pulse qp-text-white qp-text-sm"></i>
                             </div>
-                            <span class="text-sm font-medium">Strategy research & development</span>
+                            <span class="qp-text-sm qp-font-medium">{{ landingPageI18n.footer.strategyBuilder }}</span>
                         </div>
 
-                        <div class="flex items-center space-x-3 text-slate-600">
-                            <div class="w-8 h-8 rounded-lg bg-slate-900 flex items-center justify-center">
-                                <i class="ph ph-chart-line-up text-white text-sm"></i>
+                        <div class="qp-flex qp-items-center qp-space-x-3 qp-text-slate-600">
+                            <div class="qp-w-8 qp-h-8 qp-rounded-lg qp-bg-slate-900 qp-flex qp-items-center qp-justify-center">
+                                <i class="ph ph-chart-line-up qp-text-white qp-text-sm"></i>
                             </div>
-                            <span class="text-sm font-medium">Comprehensive backtesting engine</span>
+                            <span class="qp-text-sm qp-font-medium">{{ landingPageI18n.footer.backtestingEngine }}</span>
                         </div>
 
-                        <div class="flex items-center space-x-3 text-slate-600">
-                            <div class="w-8 h-8 rounded-lg bg-slate-900 flex items-center justify-center">
-                                <i class="ph ph-shield-check text-white text-sm"></i>
+                        <div class="qp-flex qp-items-center qp-space-x-3 qp-text-slate-600">
+                            <div class="qp-w-8 qp-h-8 qp-rounded-lg qp-bg-slate-900 qp-flex qp-items-center qp-justify-center">
+                                <i class="ph ph-shield-check qp-text-white qp-text-sm"></i>
                             </div>
-                            <span class="text-sm font-medium">Performance analysis & enhancement</span>
+                            <span class="qp-text-sm qp-font-medium">{{ landingPageI18n.stats.services.securePlatform }}</span>
                         </div>
                     </div>
 
                     <!-- Trust Stats -->
-                    <div class="bg-slate-50/80 border border-slate-200 rounded-xl p-4">
-                        <div class="grid grid-cols-3 gap-4 text-center">
+                    <div class="qp-bg-slate-50/80 qp-border qp-border-slate-200 qp-rounded-xl qp-p-4">
+                        <div class="qp-grid qp-grid-cols-3 qp-gap-4 qp-text-center">
                             <div>
-                                <div class="text-lg font-bold text-slate-900">25+</div>
-                                <div class="text-xs text-slate-600">Years of Data</div>
+                                <div class="qp-text-lg qp-font-bold qp-text-slate-900">25+</div>
+                                <div class="qp-text-xs qp-text-slate-600">{{ landingPageI18n.stats.services.yearsOfData }}</div>
                             </div>
                             <div>
-                                <div class="text-lg font-bold text-slate-900">24/7</div>
-                                <div class="text-xs text-slate-600">Monitoring</div>
+                                <div class="qp-text-lg qp-font-bold qp-text-slate-900">24/7</div>
+                                <div class="qp-text-xs qp-text-slate-600">{{ landingPageI18n.stats.services.marketMonitoring }}</div>
                             </div>
                             <div>
-                                <div class="text-lg font-bold text-slate-900">100%</div>
-                                <div class="text-xs text-slate-600">Secure</div>
+                                <div class="qp-text-lg qp-font-bold qp-text-slate-900">100%</div>
+                                <div class="qp-text-xs qp-text-slate-600">{{ landingPageI18n.stats.services.securePlatform }}</div>
                             </div>
                         </div>
                     </div>
 
                     <!-- Copyright -->
-                    <p class="text-xs text-slate-400 pt-4">
-                        &copy; 2025 QuantPulse. All rights reserved.
+                    <p class="qp-text-xs qp-text-slate-400 qp-pt-4">
+                        &copy; 2025 QuantPulse. {{ landingPageI18n.footer.allRightsReserved }}
                     </p>
                 </div>
 
                 <!-- Right Panel (Auth Form) -->
-                <div class="flex items-center justify-center px-6 py-12 sm:px-10 lg:py-16">
-                    <div class="w-full max-w-md">
+                <div class="qp-flex qp-items-center qp-justify-center qp-px-6 qp-py-12 sm:qp-px-10 lg:qp-py-16">
+                    <div class="qp-w-full qp-max-w-md">
                         <!-- Router View for Auth Pages -->
                         <router-view />
 
                         <!-- Footer -->
-                        <div class="mt-6 text-center">
+                        <div class="qp-mt-6 qp-text-center">
                             <slot name="footer">
-                                <p class="text-xs text-slate-500 leading-relaxed">
+                                <p class="qp-text-xs qp-text-slate-500 qp-leading-relaxed">
                                     By continuing, you agree to our
-                                    <a href="#" class="text-blue-600 hover:text-blue-700 font-medium transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 rounded">Terms of Service</a>
+                                    <a href="#" class="qp-text-blue-600 hover:qp-text-blue-700 qp-font-medium qp-transition-colors qp-duration-200 focus:qp-outline-none focus:qp-ring-2 focus:qp-ring-blue-500 focus:qp-ring-offset-2 qp-rounded">Terms of Service</a>
                                     and
-                                    <a href="#" class="text-blue-600 hover:text-blue-700 font-medium transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 rounded">Privacy Policy</a>
+                                    <a href="#" class="qp-text-blue-600 hover:qp-text-blue-700 qp-font-medium qp-transition-colors qp-duration-200 focus:qp-outline-none focus:qp-ring-2 focus:qp-ring-blue-500 focus:qp-ring-offset-2 qp-rounded">Privacy Policy</a>
                                 </p>
                             </slot>
                         </div>
@@ -111,7 +108,15 @@
         </div>
     </div>
 </template>
-
+<script>
+export default {
+    data() {
+        return {
+            landingPageI18n: this.$tm('pages.landingPage')
+        }
+    }
+}
+</script>
 <style scoped>
 /* CSS Dot Pattern */
 .dot-pattern {
@@ -185,17 +190,17 @@
 
 /* Responsive Design */
 @media (max-width: 1024px) {
-    .hidden.lg\\:flex {
+    .qp-hidden.lg\\:qp-flex {
         display: none;
     }
 }
 
 @media (max-width: 640px) {
-    .p-4 {
+    .qp-p-4 {
         padding: 0.75rem;
     }
 
-    .px-6.py-12 {
+    .qp-px-6.qp-py-12 {
         padding: 2rem 1.5rem;
     }
 }

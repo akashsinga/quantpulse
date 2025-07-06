@@ -1,63 +1,57 @@
 <template>
-    <div class="w-full">
-        <div class="text-center mb-8">
-            <h1 class="text-3xl font-bold text-slate-900 mb-3 tracking-tight leading-tight">Welcome back</h1>
-            <p class="text-slate-600 text-base leading-relaxed">Sign in to your account to continue</p>
+    <div class="qp-w-full">
+        <div class="qp-text-center qp-mb-8">
+            <h1 class="qp-text-3xl qp-font-bold qp-text-slate-900 qp-mb-3 qp-tracking-tight qp-leading-tight">{{ loginPageI18n.welcomeBack }}</h1>
+            <p class="qp-text-slate-600 qp-text-base qp-leading-relaxed">{{ loginPageI18n.signInToContinue }}</p>
         </div>
 
-        <div v-if="error" class="bg-red-50 border border-red-200 rounded-xl p-4 mb-4 shadow-sm backdrop-blur-sm">
-            <div class="flex items-center">
-                <div class="flex-shrink-0">
-                    <i class="ph ph-warning-circle text-red-500 text-lg"></i>
+        <div v-if="error" class="qp-bg-red-50 qp-border qp-border-red-200 qp-rounded-xl qp-p-4 qp-mb-4 qp-shadow-sm qp-backdrop-blur-sm">
+            <div class="qp-flex qp-items-center">
+                <div class="qp-flex-shrink-0">
+                    <i class="ph ph-warning-circle qp-text-red-500 qp-text-lg"></i>
                 </div>
-                <div class="ml-3">
-                    <span class="text-sm text-red-800 font-semibold">{{ error }}</span>
+                <div class="qp-ml-3">
+                    <span class="qp-text-sm qp-text-red-800 qp-font-semibold">{{ error }}</span>
                 </div>
             </div>
         </div>
 
-        <form @submit.prevent="handleLogin" class="space-y-6">
-            <div class="space-y-2">
-                <label for="email" class="block text-sm font-semibold text-slate-800 tracking-wide">Email Address</label>
+        <form @submit.prevent="handleLogin" class="qp-space-y-6">
+            <div class="qp-space-y-2">
+                <label for="email" class="qp-block qp-text-sm qp-font-semibold qp-text-slate-800 qp-tracking-wide">{{ loginPageI18n.fields.emailAddress }}</label>
                 <IconField>
                     <InputIcon class="ph ph-envelope"></InputIcon>
-                    <InputText v-model="loginForm.email" class="w-full transition-all duration-200 ease-in-out" id="email" type="email" size="small" placeholder="Enter your email address" :invalid="!!errors.email" @input="clearErrors" />
+                    <InputText v-model="loginForm.email" class="qp-w-full qp-transition-all qp-duration-200 qp-ease-in-out" id="email" type="email" size="small" :placeholder="loginPageI18n.enterYourEmailAddress" :invalid="!!errors.email" @input="clearErrors" />
                 </IconField>
-                <small v-if="errors.email" class="text-red-600 font-semibold text-xs block mt-1">{{ errors.email }}</small>
+                <small v-if="errors.email" class="qp-text-red-600 qp-font-semibold qp-text-xs qp-block qp-mt-1">{{ errors.email }}</small>
             </div>
 
-            <div class="space-y-2">
-                <label for="password" class="block text-sm font-semibold text-slate-800 tracking-wide">Password</label>
+            <div class="qp-space-y-2">
+                <label for="password" class="qp-block qp-text-sm qp-font-semibold qp-text-slate-800 qp-tracking-wide">{{ loginPageI18n.fields.password }}</label>
                 <IconField>
                     <InputIcon class="ph ph-lock"></InputIcon>
-                    <InputText v-model="loginForm.password" class="w-full transition-all duration-200 ease-in-out" id="password" size="small" type="password" placeholder="Enter your password" :invalid="!!errors.password" :feedback="false" toggleMask @input="clearErrors" />
+                    <InputText v-model="loginForm.password" class="qp-w-full qp-transition-all qp-duration-200 qp-ease-in-out" id="password" size="small" type="password" :placeholder="loginPageI18n.enterYourPassword" :invalid="!!errors.password" :feedback="false" toggleMask @input="clearErrors" />
                 </IconField>
-                <small v-if="errors.password" class="text-red-600 font-semibold text-xs block mt-1">{{ errors.password }}</small>
+                <small v-if="errors.password" class="qp-text-red-600 qp-font-semibold qp-text-xs qp-block qp-mt-1">{{ errors.password }}</small>
             </div>
 
-            <div class="pt-4">
-                <Button type="submit" :loading="isLoading" :disabled="!isFormValid" class="w-full transform transition-all duration-200 ease-in-out hover:scale-[1.02] hover:shadow-lg active:scale-[0.98]" size="small">
+            <div class="qp-pt-4">
+                <Button type="submit" :loading="isLoading" :disabled="!isFormValid" class="qp-w-full qp-transform qp-transition-all qp-duration-200 qp-ease-in-out hover:qp-scale-[1.02] hover:qp-shadow-lg active:qp-scale-[0.98]" size="small">
                     <template #default>
-                        <span v-if="!isLoading" class="flex items-center justify-center font-semibold tracking-wide">
-                            Sign in
-                        </span>
-                        <span v-else class="flex items-center justify-center font-semibold tracking-wide">
-                            <i class="ph ph-spinner animate-spin mr-2"></i>
-                            Signing in...
+                        <span v-if="!isLoading" class="qp-flex qp-items-center qp-justify-center qp-font-semibold qp-tracking-wide">{{ loginPageI18n.signIn }}</span>
+                        <span v-else class="qp-flex qp-items-center qp-justify-center qp-font-semibold qp-tracking-wide">
+                            <i class="ph ph-spinner animate-spin qp-mr-2"></i>
+                            {{ loginPageI18n.signingIn }}
                         </span>
                     </template>
                 </Button>
             </div>
         </form>
 
-        <div class="mt-8 pt-6 border-t border-slate-200/60">
-            <div class="flex justify-between items-center">
-                <a href="#" class="text-sm text-blue-600 hover:text-blue-700 font-semibold transition-all duration-300 ease-out transform hover:-translate-y-0.5 hover:shadow-sm rounded px-2 py-1 hover:bg-blue-50/50">
-                    Forgot password?
-                </a>
-                <a href="#" class="text-sm text-slate-700 hover:text-slate-900 font-semibold transition-all duration-300 ease-out transform hover:-translate-y-0.5 hover:shadow-sm rounded px-2 py-1 hover:bg-slate-50/50">
-                    Create account
-                </a>
+        <div class="qp-mt-8 qp-pt-6 qp-border-t qp-border-slate-200/60">
+            <div class="qp-flex qp-justify-between qp-items-center">
+                <a href="#" class="qp-text-sm qp-text-blue-600 hover:qp-text-blue-700 qp-font-semibold qp-transition-all qp-duration-300 qp-ease-out qp-transform hover:qp--translate-y-0.5 hover:qp-shadow-sm qp-rounded qp-px-2 qp-py-1 hover:qp-bg-blue-50/50">{{ loginPageI18n.forgotPassword }}</a>
+                <a href="#" class="qp-text-sm qp-text-slate-700 hover:qp-text-slate-900 qp-font-semibold qp-transition-all qp-duration-300 qp-ease-out qp-transform hover:qp--translate-y-0.5 hover:qp-shadow-sm qp-rounded qp-px-2 qp-py-1 hover:qp-bg-slate-50/50">{{ loginPageI18n.createAccount }}</a>
             </div>
         </div>
     </div>
@@ -72,7 +66,8 @@ export default {
     data() {
         return {
             loginForm: { email: '', password: '' },
-            errors: { email: '', password: '' }
+            errors: { email: '', password: '' },
+            loginPageI18n: this.$tm('pages.login')
         }
     },
 

@@ -13,7 +13,7 @@ export const en = {
                 getStarted: 'Get Started'
             },
             heroSection: {
-                aiPoweredTradingPlatform: 'AI-Powered Trading Platform',
+                aiPoweredTradingPlatform: 'AI-Powered Platform',
                 whereDataBecomes: 'Where Data Becomes',
                 alpha: 'Alpha',
                 subtitle: 'Sophisticated quantitative strategies meet cutting-edge machine learning. Backtest with precision, execute with confidence, and outperform with intelligence.',
@@ -89,6 +89,20 @@ export const en = {
                 signalGeneration: 'Signal Generation',
                 portfolioTracking: 'Portfolio Tracking',
                 allRightsReserved: 'All rights reserved.'
+            }
+        },
+        login: {
+            welcomeBack: 'Welcome Back',
+            signInToContinue: 'Sign in to your account to continue',
+            forgotPassword: 'Forgot password?',
+            createAccount: 'Create account',
+            signIn: 'Sign in',
+            signingIn: 'Signing in...',
+            enterYourEmailAddress: 'Enter your email address',
+            enterYourPassword: 'Enter your password',
+            fields: {
+                emailAddress: 'Email Address',
+                password: 'Password'
             }
         },
         adminLayout: {
