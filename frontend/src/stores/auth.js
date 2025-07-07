@@ -87,6 +87,7 @@ const actions = {
     clearAuthData: function () {
         this.token = null
         this.tokenType = 'bearer'
+        this.userProfile = {}
         this.expiresAt = null
         this.user = null
         this.error = null

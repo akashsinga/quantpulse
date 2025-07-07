@@ -119,7 +119,11 @@ export const en = {
                 system: { title: 'System & Monitoring', items: { logs: 'System Logs', apiMonitoring: 'API Monitoring', database: 'Database Admin', settings: 'System Settings' } }
             },
             admin: 'Admin',
-            superAdmin: 'Super Admin'
+            superAdmin: 'Super Admin',
+            userMenuItems: {
+                profile: 'Profile',
+                logout: 'Logout'
+            }
         }
     },
     components: {}

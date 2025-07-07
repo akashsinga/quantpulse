@@ -64,7 +64,7 @@
                     <div class="search-container">
                         <IconField iconPosition="left">
                             <InputIcon class="ph ph-magnifying-glass"></InputIcon>
-                            <InputText class="search-query" size="small" v-model="searchQuery" :placeholder="$tm('common.search')" @focus="isSearchFocused = true" @blue="isSearchFocused = false"></InputText>
+                            <InputText class="search-query" ref="searchInput" size="small" v-model="searchQuery" :placeholder="$tm('common.search')" @focus="isSearchFocused = true" @blur="isSearchFocused = false"></InputText>
                         </IconField>
                         <kbd v-if="!isSearchFocused" class="search-shortcut">Ctrl + K</kbd>
                     </div>
@@ -88,9 +88,7 @@
                                 <i class="ph ph-caret-down user-dropdown-icon"></i>
                             </div>
                         </Button>
-                        <!-- <Menu ref="userMenu" :model="userMenuItems" :popup="true" class="user-menu-popup">
-
-                        </Menu> -->
+                        <Menu ref="userMenu" :model="userMenuItems" :popup="true" class="user-menu-popup"></Menu>
                     </div>
                 </div>
             </header>
@@ -103,7 +101,7 @@
     </div>
 </template>
 <script>
-import { mapState } from 'pinia'
+import { mapActions, mapState } from 'pinia'
 import { useAuthStore } from '@/stores/auth'
 export default {
     data() {
@@ -165,7 +163,11 @@ export default {
             ],
             searchQuery: null,
             showUserMenu: false,
-            isMobile: window.innerWidth < 768
+            isMobile: window.innerWidth < 768,
+            userMenuItems: [
+                { id: 'profile', icon: 'ph ph-user', command: () => this.$router.push('/admin/profile') },
+                { id: 'logout', icon: 'ph ph-sign-out', command: () => this.logoutUser() }
+            ]
         }
     },
     computed: {
@@ -195,6 +197,8 @@ export default {
         }
     },
     methods: {
+        ...mapActions(useAuthStore, ['logout']),
+
         /**
          * Identifies page title from path.
          * @param {String} path
@@ -202,7 +206,7 @@ export default {
          */
         getPageTitle: function (path) {
             for (const group of this.navigationItems) {
-                for (const item in group.items) {
+                for (const item of group.items) {
                     if (item.path === path) {
                         return item.title
                     }
@@ -229,6 +233,19 @@ export default {
                 navGroup.title = this.adminLayoutI18n.navItems[navGroup.id].title
                 return navGroup
             })
+
+            this.userMenuItems = this.$lodash.map(this.userMenuItems, (userMenuItem) => ({ ...userMenuItem, label: this.adminLayoutI18n.userMenuItems[userMenuItem.id] }))
+        },
+
+        /**
+         * Binds keyboard shortcuts.
+         * @param {Object} event
+         */
+        handleKeyboardShortcuts: function (event) {
+            if ((event.ctrlKey || event.metaKey) && event.key === 'k') {
+                event.preventDefault()
+                this.$refs.searchInput.$el.focus()
+            }
         },
 
         /**
@@ -259,11 +276,20 @@ export default {
          */
         toggleUserMenu: function (event) {
             this.$refs.userMenu.toggle(event)
+        },
+
+        /**
+         * Handles user logout.
+         */
+        logoutUser: function () {
+            this.logout()
+            this.$router.push({ name: 'login' })
         }
     },
     mounted() {
         this.init()
         window.addEventListener('resize', this.onResize)
+        window.addEventListener('keydown', this.handleKeyboardShortcuts)
     },
     beforeUnmount() {
         window.removeEventListener('resize', this.onResize)
