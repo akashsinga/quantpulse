@@ -16,6 +16,28 @@
 
 /* Base styles */
 @layer base {
+
+    * {
+        ::-webkit-scrollbar {
+            @apply qp-w-2.5;
+        }
+
+        ::-webkit-scrollbar-track {
+            @apply qp-bg-transparent;
+            @apply qp-m-1;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: rgba(148, 163, 184, 0.3);
+            border-radius: 3px;
+            transition: background 0.2s ease;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: rgba(148, 163, 184, 0.5);
+        }
+    }
+
     html {
         font-family: 'Geist', system-ui, sans-serif;
         @apply qp-scroll-smooth;

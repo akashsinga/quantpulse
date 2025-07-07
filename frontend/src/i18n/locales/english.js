@@ -1,5 +1,7 @@
 export const en = {
-    common: {},
+    common: {
+        search: 'Search ...'
+    },
     pages: {
         404: {
             404: '404',
@@ -106,7 +108,18 @@ export const en = {
             }
         },
         adminLayout: {
-            adminPanel: 'Admin Panel'
+            adminPanel: 'Admin Panel',
+            brandSubtitle: 'Predictive Stock Analytics',
+            navItems: {
+                overview: { title: 'Overview', items: { dashboard: 'Dashboard', health: 'Health' } },
+                platform: { title: 'Platform Management', items: { strategyTemplates: 'Strategy Templates', mlModels: 'ML Models', signalAlgorithms: 'Signal Algorithms' } },
+                data: { title: 'Data Management', items: { securities: 'Securities', exchanges: 'Exchanges', marketData: 'Market Data', dataFeed: 'Data Feeds' } },
+                analytics: { title: 'Platform Analytics', items: { usageMetrics: 'Usage Metrics', systemPerformance: 'System Performance', resourceUsage: 'Resource Usage' } },
+                administration: { title: 'User & System Admin', items: { users: 'User Management', roles: 'Roles & Permissions', tasks: 'Background Tasks', notifications: 'System Notifications' } },
+                system: { title: 'System & Monitoring', items: { logs: 'System Logs', apiMonitoring: 'API Monitoring', database: 'Database Admin', settings: 'System Settings' } }
+            },
+            admin: 'Admin',
+            superAdmin: 'Super Admin'
         }
     },
     components: {}
