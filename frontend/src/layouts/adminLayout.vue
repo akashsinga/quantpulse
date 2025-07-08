@@ -260,7 +260,9 @@ export default {
          * Executed on navlink click.
          */
         onNavLinkClick: function () {
-            this.isSidebarCollapsed = this.isMobile
+            if (this.isMobile) {
+                this.isSidebarCollapsed = true
+            }
         },
 
         /**
