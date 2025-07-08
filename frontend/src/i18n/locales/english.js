@@ -1,6 +1,8 @@
 export const en = {
     common: {
-        search: 'Search ...'
+        search: 'Search ...',
+        refresh: 'Refresh',
+        clear: 'Clear'
     },
     pages: {
         404: {
@@ -123,6 +125,30 @@ export const en = {
             userMenuItems: {
                 profile: 'Profile',
                 logout: 'Logout'
+            }
+        },
+        securities: {
+            securitiesManagement: 'Securities Management',
+            securitiesManagementSubtitle: 'Manage and monitor securities data across all exchanges',
+            importSecurities: 'Import Securities',
+            searchPlaceholder: 'Search securities by symbol or name',
+            stats: {
+                total: 'Total Securities',
+                active: 'Active Securities',
+                futures: 'Futures Contracts',
+                derivatives: 'Derivatives Eligible'
+            },
+            filters: {
+                exchange: 'Exchange',
+                securityType: 'Security Type',
+                segment: 'Segment',
+                status: 'Status',
+                placeholders: {
+                    exchange: 'All Exchanges',
+                    securityType: 'All Types',
+                    segment: 'All Segments',
+                    status: 'All Status'
+                }
             }
         }
     },

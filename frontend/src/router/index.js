@@ -29,7 +29,8 @@ const router = createRouter({
       component: adminLayout,
       children: [
         { path: '', name: 'adminRedirect', redirect: '/admin/dashboard' },
-        { path: 'dashboard', name: 'adminDashboard', component: () => import('@/pages/admin/dashboardPage.vue') }
+        { path: 'dashboard', name: 'adminDashboard', component: () => import('@/pages/admin/dashboardPage.vue') },
+        { path: 'securities', name: 'adminSecurities', component: () => import('@/pages/admin/securitiesPage.vue') }
       ],
       meta: { requiresAuth: true, requiresSuperuser: true, title: 'QuantPulse | Admin' }
     },
