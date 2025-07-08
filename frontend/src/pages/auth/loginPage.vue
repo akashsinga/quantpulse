@@ -5,7 +5,7 @@
             <p class="qp-text-slate-600 qp-text-base qp-leading-relaxed">{{ loginPageI18n.signInToContinue }}</p>
         </div>
 
-        <div v-if="error" class="qp-bg-red-50 qp-border qp-border-red-200 qp-rounded-xl qp-p-4 qp-mb-4 qp-shadow-sm qp-backdrop-blur-sm">
+        <div v-if="error" class="qp-bg-red-50 qp-border qp-border-red-200 qp-rounded-md qp-p-4 qp-mb-4 qp-shadow-sm qp-backdrop-blur-sm">
             <div class="qp-flex qp-items-center">
                 <div class="qp-flex-shrink-0">
                     <i class="ph ph-warning-circle qp-text-red-500 qp-text-lg"></i>

@@ -23,7 +23,7 @@
                 <nav class="qp-max-w-7xl qp-mx-auto qp-px-6 qp-py-4">
                     <div class="qp-flex qp-items-center qp-justify-between">
                         <div class="qp-flex qp-items-center qp-space-x-3">
-                            <div class="qp-w-10 qp-h-10 qp-bg-slate-900 qp-rounded-xl qp-flex qp-items-center qp-justify-center">
+                            <div class="qp-w-10 qp-h-10 qp-bg-slate-900 qp-rounded-md qp-flex qp-items-center qp-justify-center">
                                 <img src="@/assets/images/favicon.svg">
                             </div>
                             <span class="qp-text-2xl qp-font-bold qp-text-slate-900">QuantPulse</span>
@@ -86,7 +86,7 @@
                     </div>
 
                     <div class="qp-grid md:qp-grid-cols-2 qp-gap-8 qp-max-w-5xl qp-mx-auto">
-                        <div class="qp-bg-white qp-p-8 qp-rounded-xl qp-border qp-border-slate-200 hover:qp-shadow-lg qp-transition-shadow">
+                        <div class="qp-bg-white qp-p-8 qp-rounded-md qp-border qp-border-slate-200 hover:qp-shadow-lg qp-transition-shadow">
                             <div class="qp-w-12 qp-h-12 qp-bg-slate-900 qp-rounded-lg qp-flex qp-items-center qp-justify-center qp-mb-6">
                                 <i class="ph ph-pulse qp-text-white qp-text-xl"></i>
                             </div>
@@ -94,7 +94,7 @@
                             <p class="qp-text-slate-600 qp-leading-relaxed">{{ landingPageI18n.features.featureList.realTimeSignalGenerationSubtitle }}</p>
                         </div>
 
-                        <div class="qp-bg-white qp-p-8 qp-rounded-xl qp-border qp-border-slate-200 hover:qp-shadow-lg qp-transition-shadow">
+                        <div class="qp-bg-white qp-p-8 qp-rounded-md qp-border qp-border-slate-200 hover:qp-shadow-lg qp-transition-shadow">
                             <div class="qp-w-12 qp-h-12 qp-bg-slate-900 qp-rounded-lg qp-flex qp-items-center qp-justify-center qp-mb-6">
                                 <i class="ph ph-chart-line-up qp-text-white qp-text-xl"></i>
                             </div>
@@ -102,7 +102,7 @@
                             <p class="qp-text-slate-600 qp-leading-relaxed">{{ landingPageI18n.features.featureList.historicalStrategyBacktestingSubtitle }}</p>
                         </div>
 
-                        <div class="qp-bg-white qp-p-8 qp-rounded-xl qp-border qp-border-slate-200 hover:qp-shadow-lg qp-transition-shadow">
+                        <div class="qp-bg-white qp-p-8 qp-rounded-md qp-border qp-border-slate-200 hover:qp-shadow-lg qp-transition-shadow">
                             <div class="qp-w-12 qp-h-12 qp-bg-slate-900 qp-rounded-lg qp-flex qp-items-center qp-justify-center qp-mb-6">
                                 <i class="ph ph-shield-warning qp-text-white qp-text-xl"></i>
                             </div>
@@ -110,7 +110,7 @@
                             <p class="qp-text-slate-600 qp-leading-relaxed">{{ landingPageI18n.features.featureList.portfolioRiskManagementSubtitle }}</p>
                         </div>
 
-                        <div class="qp-bg-white qp-p-8 qp-rounded-xl qp-border qp-border-slate-200 hover:qp-shadow-lg qp-transition-shadow">
+                        <div class="qp-bg-white qp-p-8 qp-rounded-md qp-border qp-border-slate-200 hover:qp-shadow-lg qp-transition-shadow">
                             <div class="qp-w-12 qp-h-12 qp-bg-slate-900 qp-rounded-lg qp-flex qp-items-center qp-justify-center qp-mb-6">
                                 <i class="ph ph-brain qp-text-white qp-text-xl"></i>
                             </div>
@@ -298,7 +298,7 @@
                     <div class="qp-grid md:qp-grid-cols-3 qp-gap-12 qp-mb-12">
                         <div>
                             <div class="qp-flex qp-items-center qp-space-x-3 qp-mb-6">
-                                <div class="qp-w-10 qp-h-10 qp-bg-white qp-rounded-xl qp-flex qp-items-center qp-justify-center">
+                                <div class="qp-w-10 qp-h-10 qp-bg-white qp-rounded-md qp-flex qp-items-center qp-justify-center">
                                     <svg viewBox="0 0 100 100" class="qp-w-6 qp-h-6 qp-text-slate-900">
                                         <path d="M15 50 L25 50 L30 35 L35 65 L40 25 L45 75 L50 15 L55 85 L60 30 L65 70 L70 40 L75 50 L85 50" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" />
                                     </svg>

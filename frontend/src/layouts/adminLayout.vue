@@ -26,7 +26,7 @@
                         <div v-if="!isSidebarCollapsed && group.title" class="nav-group-title">{{ group.title }}</div>
                         <ul class="nav-items">
                             <li v-for="item in group.items" :key="item.id" class="nav-item">
-                                <router-link :to="item.path" class="nav-link" :class="{ 'active': isActivePath(item.path) }" @click="onNavLinkClick()">
+                                <router-link :to="item.path" class="nav-link" :class="{ 'active': isActivePath(item.path) }" v-tooltip.right="isSidebarCollapsed ? { value: item.title, showDelay: 500 } : null" @click="onNavLinkClick()">
                                     <div class="nav-icon">
                                         <i :class="item.icon"></i>
                                     </div>
@@ -312,7 +312,7 @@ export default {
             @apply qp-flex qp-items-center qp-gap-3 qp-min-w-0;
 
             .logo {
-                @apply qp-relative qp-flex-shrink-0 qp-w-12 qp-h-12 qp-rounded-xl qp-flex qp-items-center qp-justify-center qp-p-1 qp-bg-transparent qp-border qp-border-slate-200;
+                @apply qp-relative qp-flex-shrink-0 qp-w-12 qp-h-12 qp-rounded-md qp-flex qp-items-center qp-justify-center qp-p-1 qp-bg-transparent qp-border qp-border-slate-200;
 
                 img {
                     @apply qp-w-12 qp-h-12 qp-relative qp-z-10;
@@ -422,7 +422,7 @@ export default {
                 }
 
                 .nav-link {
-                    @apply qp-justify-center qp-px-1 qp-py-3 qp-rounded-xl;
+                    @apply qp-justify-center qp-px-1 qp-py-3 qp-rounded-md;
 
                     .nav-icon {
                         @apply qp-w-8 qp-h-8 qp-text-lg;

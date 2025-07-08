@@ -17,7 +17,7 @@
                 <div class="qp-hidden lg:qp-flex qp-flex-col qp-justify-center qp-px-12 qp-py-16 qp-space-y-8 qp-border-r qp-border-slate-200 qp-bg-gradient-to-br qp-from-white/90 qp-to-slate-50/90">
                     <!-- Logo & Brand -->
                     <div class="qp-flex qp-items-center qp-space-x-4">
-                        <div class="qp-w-12 qp-h-12 qp-bg-slate-900 qp-rounded-xl qp-flex qp-items-center qp-justify-center">
+                        <div class="qp-w-12 qp-h-12 qp-bg-slate-900 qp-rounded-md qp-flex qp-items-center qp-justify-center">
                             <img src="@/assets/images/favicon.svg" alt="QuantPulse" class="qp-w-7 qp-h-7">
                         </div>
                         <div class="qp-flex qp-flex-col">
@@ -62,7 +62,7 @@
                     </div>
 
                     <!-- Trust Stats -->
-                    <div class="qp-bg-slate-50/80 qp-border qp-border-slate-200 qp-rounded-xl qp-p-4">
+                    <div class="qp-bg-slate-50/80 qp-border qp-border-slate-200 qp-rounded-md qp-p-4">
                         <div class="qp-grid qp-grid-cols-3 qp-gap-4 qp-text-center">
                             <div>
                                 <div class="qp-text-lg qp-font-bold qp-text-slate-900">25+</div>
