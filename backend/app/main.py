@@ -16,6 +16,7 @@ from app.utils.logger import get_logger
 # Router Imports
 from app.api.v1 import auth
 from app.api.v1 import securities
+from app.api.v1 import exchanges
 
 logger = get_logger(__name__)
 
@@ -46,7 +47,8 @@ app.add_middleware(RequestMiddleware)
 
 # Routers
 app.include_router(auth.router, prefix=f"{settings.api.API_V1_PREFIX}/auth", tags=["auth"])
-app.include_router(securities.router, prefix=f"{settings.api.API_V1_PREFIX}/securities", tags=["auth"])
+app.include_router(securities.router, prefix=f"{settings.api.API_V1_PREFIX}/securities", tags=["securities"])
+app.include_router(exchanges.router, prefix=f"{settings.api.API_V1_PREFIX}/exchanges", tags=["exchanges"])
 
 
 @app.get("/", tags=["root"])
