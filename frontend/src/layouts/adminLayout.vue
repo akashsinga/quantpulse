@@ -303,7 +303,7 @@ export default {
 
 /* Sidebar Styles */
 .sidebar {
-    @apply qp-fixed qp-left-0 qp-top-0 qp-h-screen qp-w-64 qp-bg-white qp-border-r qp-border-slate-200 qp-transition-all qp-duration-300;
+    @apply qp-fixed qp-left-0 qp-top-0 qp-h-screen qp-w-64 qp-bg-white qp-border-r qp-border-slate-200 qp-transition-all qp-duration-300 qp-flex qp-flex-col;
 
     .sidebar-header {
         @apply qp-flex qp-items-center qp-p-4 qp-border-b qp-border-slate-200 qp-relative qp-flex-shrink-0 qp-z-[1];
