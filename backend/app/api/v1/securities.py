@@ -7,13 +7,13 @@ from fastapi import APIRouter, Depends, HTTPException, status, Query, Background
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.api.dependencies import get_current_active_user
+from app.api.dependencies import get_current_active_user, get_current_superuser
 from app.services.task_service import TaskService
 from app.repositories.securities import SecurityRepository, ExchangeRepository, FutureRepository
 from app.schemas.base import APIResponse, PaginatedResponse, PaginationMeta
-from app.schemas.security import SecurityResponse, ExchangeResponse, FutureResponse, ImportStatusResponse
+from app.schemas.security import SecurityResponse, ExchangeResponse, FutureResponse, ImportStatusResponse, SecurityStatsResponse
 from app.tasks.import_securities import import_securities_from_dhan
-from app.utils.enum import TaskType
+from app.utils.enum import TaskType, SecuritySegment
 from app.utils.logger import get_logger
 
 router = APIRouter()
@@ -58,6 +58,29 @@ async def get_securities(skip: int = 0, limit: int = 100, exchange_id: Optional[
     except Exception as e:
         logger.error(f"Error getting securities: {e}")
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to retrieve securities")
+
+
+@router.get('/stats', response_model=APIResponse[SecurityStatsResponse])
+async def get_security_stats(db=Depends(get_db), current_user=Depends(get_current_superuser)):
+    """Prepares securities stats data"""
+    try:
+        security_repo = SecurityRepository(db)
+
+        total_securities = security_repo.get_all()
+        total = security_repo.count()
+        active_securities = security_repo.get_many_by_field('is_active', True).count()
+        active = security_repo.count()
+        futures_securities = security_repo.get_securities_by_segment(SecuritySegment.DERIVATIVE.value)
+        futures = security_repo.count()
+        derivatives_eligible = security_repo.get_many_by_field('is_derivatives_eligible', True)
+        derivatives = security_repo.count()
+
+        statsResponse = SecurityStatsResponse(total=total, active=active, futures=futures, derivatives=derivatives)
+
+        return APIResponse(success=True, message="Securities stats fetched successfully", data=statsResponse)
+    except Exception as e:
+        logger.error(f"Error preparing securities stats: {e}")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to fetch securities stats")
 
 
 @router.get("/search", response_model=PaginatedResponse[SecurityResponse])
@@ -155,7 +178,7 @@ async def get_futures(skip: int = 0, limit: int = 100, underlying_id: Optional[U
 
 
 @router.post("/import", response_model=APIResponse[ImportStatusResponse])
-async def import_securities(db: Session = Depends(get_db), current_user=Depends(get_current_active_user)):
+async def import_securities(db: Session = Depends(get_db), current_user=Depends(get_current_superuser)):
     """
     Start securities import from Dhan CSV.
     This will run as a background task and return a task ID for monitoring.
@@ -189,7 +212,7 @@ async def import_securities(db: Session = Depends(get_db), current_user=Depends(
 
 
 @router.get("/import/status/{task_id}", response_model=APIResponse[ImportStatusResponse])
-async def get_import_status(task_id: UUID, db: Session = Depends(get_db), current_user=Depends(get_current_active_user)):
+async def get_import_status(task_id: UUID, db: Session = Depends(get_db), current_user=Depends(get_current_superuser)):
     """Get the status of a securities import task."""
     try:
         task_service = TaskService(db)

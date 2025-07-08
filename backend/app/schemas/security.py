@@ -196,6 +196,14 @@ class SecurityResponse(BaseResponseSchema):
         }
 
 
+class SecurityStatsResponse(BaseResponseSchema):
+    """Schema for security stats"""
+    total: int = 0
+    active: int = 0
+    futures: int = 0
+    derivatives: int = 0
+
+
 class FutureResponse(BaseResponseSchema):
     """Schema for future responses"""
     security_id: UUID
