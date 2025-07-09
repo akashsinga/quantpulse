@@ -98,6 +98,7 @@
                 <router-view></router-view>
             </main>
         </div>
+        <Toast></Toast>
     </div>
 </template>
 <script>
