@@ -1,19 +1,19 @@
 # backend/app/api/v1/securities.py
 """Securities Router"""
 
-from typing import List, Optional, Dict, Any
+from typing import Optional
 from uuid import UUID
-from fastapi import APIRouter, Depends, HTTPException, status, Query, BackgroundTasks
+from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.api.dependencies import get_current_active_user, get_current_superuser
 from app.services.task_service import TaskService
-from app.repositories.securities import SecurityRepository, ExchangeRepository, FutureRepository
+from app.repositories.securities import SecurityRepository, FutureRepository
 from app.schemas.base import APIResponse, PaginatedResponse, PaginationMeta
-from app.schemas.security import SecurityResponse, ExchangeResponse, FutureResponse, ImportStatusResponse, SecurityStatsResponse
+from app.schemas.security import SecurityResponse, ImportStatusResponse, SecurityStatsResponse
 from app.tasks.import_securities import import_securities_from_dhan
-from app.utils.enum import TaskType, SecuritySegment, SecurityType
+from app.utils.enum import TaskType, SecuritySegment
 from app.utils.logger import get_logger
 
 router = APIRouter()
@@ -21,39 +21,103 @@ logger = get_logger(__name__)
 
 
 @router.get("", response_model=PaginatedResponse[SecurityResponse])
-async def get_securities(skip: int = 0, limit: int = 100, exchange_id: Optional[UUID] = None, security_type: Optional[str] = SecurityType.EQUITY.value, segment: Optional[str] = None, sector: Optional[str] = None, active_only: bool = True, db: Session = Depends(get_db), current_user=Depends(get_current_active_user)):
-    """Get list of securities with filtering and pagination."""
+async def get_securities(
+    skip: int = 0,
+    limit: int = 100,
+    # Search functionality
+    q: Optional[str] = Query(None, description="Search term for symbol or name"),
+
+    # Filters
+    exchange_id: Optional[UUID] = None,
+    security_type: Optional[str] = None,
+    segment: Optional[str] = SecuritySegment.EQUITY.value,
+    sector: Optional[str] = None,
+    active_only: bool = True,
+
+    # Futures-specific filters
+    underlying_id: Optional[UUID] = Query(None, description="Filter futures by underlying security"),
+    contract_month: Optional[str] = Query(None, description="Filter futures by contract month"),
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_active_user)):
+    """
+    Get securities with optional search, filtering, and pagination.
+    Handles both regular securities and futures contracts in one endpoint.
+    """
     try:
         security_repo = SecurityRepository(db)
 
-        # Build filters
-        filters = {}
-        if exchange_id:
-            filters["exchange_id"] = exchange_id
-        if security_type:
-            filters["security_type"] = security_type
-        if segment:
-            filters["segment"] = segment
-        if sector:
-            filters["sector"] = sector
-        if active_only is not None:
-            filters["is_active"] = active_only
+        # If searching for futures specifically
+        if underlying_id or contract_month or (security_type and security_type.startswith("FUT")):
+            future_repo = FutureRepository(db)
 
-        # Get securities with filters
-        if filters:
-            securities = security_repo.get_many_by_field("is_active", True, skip, limit)
-            total = security_repo.count()
+            # Build futures filters
+            filters = {}
+            if underlying_id:
+                filters["underlying_id"] = underlying_id
+            if contract_month:
+                filters["contract_month"] = contract_month
+            if security_type:
+                filters["security_type"] = security_type
+            if active_only is not None:
+                filters["is_active"] = active_only
+
+            # Search futures
+            if q:
+                futures, total = future_repo.search_futures(search_term=q, skip=skip, limit=limit, filters=filters)
+            else:
+                if underlying_id:
+                    futures = future_repo.get_by_underlying(underlying_id, skip, limit, active_only)
+                    total = len(futures)  # Could implement proper count
+                elif contract_month:
+                    futures = future_repo.get_by_contract_month(contract_month, skip, limit, active_only)
+                    total = len(futures)
+                else:
+                    futures = future_repo.get_active_futures(skip, limit) if active_only else future_repo.get_all(skip, limit)
+                    total = future_repo.count()
+
+            # Convert futures to security responses (or create unified response)
+            pagination = PaginationMeta.create(total=total, page=(skip // limit) + 1, per_page=limit)
+
+            # You might want to create a unified response or convert futures to securities
+            # For now, let's convert to security responses
+            security_responses = []
+            for future in futures:
+                if future.security:
+                    security_responses.append(SecurityResponse.model_validate(future.security))
+
+            return PaginatedResponse(data=security_responses, pagination=pagination, message=f"Found {total} futures matching criteria")
+
+        # Regular securities handling
         else:
-            securities = security_repo.get_all(skip, limit)
-            total = security_repo.count()
+            # Build filters for regular securities
+            filters = {}
+            if exchange_id:
+                filters["exchange_id"] = exchange_id
+            if security_type:
+                filters["security_type"] = security_type
+            if segment:
+                filters["segment"] = segment
+            if sector:
+                filters["sector"] = sector
+            if active_only is not None:
+                filters["is_active"] = active_only
 
-        # Calculate pagination
-        pagination = PaginationMeta.create(total=total, page=(skip // limit) + 1, per_page=limit)
+            # Use search method for both search and filtering
+            # If no search term, use empty string (search method handles filters regardless)
+            search_term = q or ""
+            securities, total = security_repo.search_securities(search_term=search_term, skip=skip, limit=limit, filters=filters)
 
-        # Convert to response format
-        security_responses = [SecurityResponse.model_validate(security) for security in securities]
+            # Calculate pagination
+            pagination = PaginationMeta.create(total=total, page=(skip // limit) + 1, per_page=limit)
 
-        return PaginatedResponse(data=security_responses, pagination=pagination, message="Securities retrieved successfully")
+            # Convert to response format
+            security_responses = [SecurityResponse.model_validate(security) for security in securities]
+
+            message = f"Found {total} securities"
+            if q:
+                message += f" matching '{q}'"
+
+            return PaginatedResponse(data=security_responses, pagination=pagination, message=message)
 
     except Exception as e:
         logger.error(f"Error getting securities: {e}")
@@ -62,7 +126,7 @@ async def get_securities(skip: int = 0, limit: int = 100, exchange_id: Optional[
 
 @router.get('/stats', response_model=APIResponse[SecurityStatsResponse])
 async def get_security_stats(db=Depends(get_db), current_user=Depends(get_current_superuser)):
-    """Prepares securities stats data"""
+    """Get securities statistics"""
     try:
         security_repo = SecurityRepository(db)
 
@@ -75,43 +139,12 @@ async def get_security_stats(db=Depends(get_db), current_user=Depends(get_curren
         derivatives_eligible = security_repo.get_many_by_field('is_derivatives_eligible', True, limit=None)
         derivatives = len(derivatives_eligible)
 
-        statsResponse = SecurityStatsResponse(total=total, active=active, futures=futures, derivatives=derivatives)
+        stats_response = SecurityStatsResponse(total=total, active=active, futures=futures, derivatives=derivatives)
 
-        return APIResponse(success=True, message="Securities stats fetched successfully", data=statsResponse)
+        return APIResponse(success=True, message="Securities stats fetched successfully", data=stats_response)
     except Exception as e:
         logger.error(f"Error preparing securities stats: {e}")
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to fetch securities stats")
-
-
-@router.get("/search", response_model=PaginatedResponse[SecurityResponse])
-async def search_securities(q: str = Query(..., description="Search term for symbol or name"), skip: int = 0, limit: int = 50, security_type: Optional[str] = None, segment: Optional[str] = None, exchange_id: Optional[UUID] = None, db: Session = Depends(get_db), current_user=Depends(get_current_active_user)):
-    """Search securities by symbol or name."""
-    try:
-        security_repo = SecurityRepository(db)
-
-        # Build filters
-        filters = {}
-        if security_type:
-            filters["security_type"] = security_type
-        if segment:
-            filters["segment"] = segment
-        if exchange_id:
-            filters["exchange_id"] = exchange_id
-
-        # Perform search
-        securities, total = security_repo.search_securities(search_term=q, skip=skip, limit=limit, filters=filters)
-
-        # Calculate pagination
-        pagination = PaginationMeta.create(total=total, page=(skip // limit) + 1, per_page=limit)
-
-        # Convert to response format
-        security_responses = [SecurityResponse.from_orm(security) for security in securities]
-
-        return PaginatedResponse(data=security_responses, pagination=pagination, message=f"Found {total} securities matching '{q}'")
-
-    except Exception as e:
-        logger.error(f"Error searching securities: {e}")
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to search securities")
 
 
 @router.get("/{security_id}", response_model=APIResponse[SecurityResponse])
@@ -121,40 +154,11 @@ async def get_security(security_id: UUID, db: Session = Depends(get_db), current
         security_repo = SecurityRepository(db)
         security = security_repo.get_by_id_or_raise(security_id)
 
-        return APIResponse(data=SecurityResponse.from_orm(security), message="Security retrieved successfully")
+        return APIResponse(data=SecurityResponse.model_validate(security), message="Security retrieved successfully")
 
     except Exception as e:
         logger.error(f"Error getting security {security_id}: {e}")
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Security not found")
-
-
-@router.get("/futures", response_model=PaginatedResponse[FutureResponse])
-async def get_futures(skip: int = 0, limit: int = 100, underlying_id: Optional[UUID] = None, contract_month: Optional[str] = None, active_only: bool = True, db: Session = Depends(get_db), current_user=Depends(get_current_active_user)):
-    """Get list of futures contracts."""
-    try:
-        future_repo = FutureRepository(db)
-
-        if underlying_id:
-            futures = future_repo.get_by_underlying(underlying_id, skip, limit, active_only)
-            total = len(futures)  # This is approximate - you might want to implement a count method
-        elif contract_month:
-            futures = future_repo.get_by_contract_month(contract_month, skip, limit, active_only)
-            total = len(futures)
-        else:
-            futures = future_repo.get_active_futures(skip, limit) if active_only else future_repo.get_all(skip, limit)
-            total = future_repo.count()
-
-        # Calculate pagination
-        pagination = PaginationMeta.create(total=total, page=(skip // limit) + 1, per_page=limit)
-
-        # Convert to response format
-        future_responses = [FutureResponse.from_orm(future) for future in futures]
-
-        return PaginatedResponse(data=future_responses, pagination=pagination, message="Futures retrieved successfully")
-
-    except Exception as e:
-        logger.error(f"Error getting futures: {e}")
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to retrieve futures")
 
 
 @router.post("/import", response_model=APIResponse[ImportStatusResponse])
