@@ -427,6 +427,12 @@ export default {
                 .nav-link {
                     @apply qp-justify-center qp-px-1 qp-py-3 qp-rounded-md;
 
+                    &.active {
+                        &::before {
+                            @apply !qp-w-0;
+                        }
+                    }
+
                     .nav-icon {
                         @apply qp-w-8 qp-h-8 qp-text-lg;
                     }
