@@ -1,8 +1,8 @@
 <template>
     <div class="qp-w-full">
         <div class="qp-text-center qp-mb-8">
-            <h1 class="qp-text-3xl qp-font-bold qp-text-slate-900 qp-mb-3 qp-tracking-tight qp-leading-tight">{{ loginPageI18n.welcomeBack }}</h1>
-            <p class="qp-text-slate-600 qp-text-base qp-leading-relaxed">{{ loginPageI18n.signInToContinue }}</p>
+            <h1 class="qp-text-3xl qp-font-bold qp-text-primary-900 qp-mb-3 qp-tracking-tight qp-leading-tight">{{ loginPageI18n.welcomeBack }}</h1>
+            <p class="qp-text-primary-600 qp-text-base qp-leading-relaxed">{{ loginPageI18n.signInToContinue }}</p>
         </div>
 
         <div v-if="error" class="qp-bg-red-50 qp-border qp-border-red-200 qp-rounded-md qp-p-4 qp-mb-4 qp-shadow-sm qp-backdrop-blur-sm">
@@ -18,7 +18,7 @@
 
         <form @submit.prevent="handleLogin" class="qp-space-y-6">
             <div class="qp-space-y-2">
-                <label for="email" class="qp-block qp-text-sm qp-font-semibold qp-text-slate-800 qp-tracking-wide">{{ loginPageI18n.fields.emailAddress }}</label>
+                <label for="email" class="qp-block qp-text-sm qp-font-semibold qp-text-primary-800 qp-tracking-wide">{{ loginPageI18n.fields.emailAddress }}</label>
                 <IconField>
                     <InputIcon class="ph ph-envelope"></InputIcon>
                     <InputText v-model="loginForm.email" class="qp-w-full qp-transition-all qp-duration-200 qp-ease-in-out" id="email" type="email" size="small" :placeholder="loginPageI18n.enterYourEmailAddress" :invalid="!!errors.email" @input="clearErrors" />
@@ -27,7 +27,7 @@
             </div>
 
             <div class="qp-space-y-2">
-                <label for="password" class="qp-block qp-text-sm qp-font-semibold qp-text-slate-800 qp-tracking-wide">{{ loginPageI18n.fields.password }}</label>
+                <label for="password" class="qp-block qp-text-sm qp-font-semibold qp-text-primary-800 qp-tracking-wide">{{ loginPageI18n.fields.password }}</label>
                 <IconField>
                     <InputIcon class="ph ph-lock"></InputIcon>
                     <InputText v-model="loginForm.password" class="qp-w-full qp-transition-all qp-duration-200 qp-ease-in-out" id="password" size="small" type="password" :placeholder="loginPageI18n.enterYourPassword" :invalid="!!errors.password" :feedback="false" toggleMask @input="clearErrors" />
@@ -48,10 +48,10 @@
             </div>
         </form>
 
-        <div class="qp-mt-8 qp-pt-6 qp-border-t qp-border-slate-200/60">
+        <div class="qp-mt-8 qp-pt-6 qp-border-t qp-border-primary-200/60">
             <div class="qp-flex qp-justify-between qp-items-center">
-                <a href="#" class="qp-text-sm qp-text-blue-600 hover:qp-text-blue-700 qp-font-semibold qp-transition-all qp-duration-300 qp-ease-out qp-transform hover:qp--translate-y-0.5 hover:qp-shadow-sm qp-rounded qp-px-2 qp-py-1 hover:qp-bg-blue-50/50">{{ loginPageI18n.forgotPassword }}</a>
-                <a href="#" class="qp-text-sm qp-text-slate-700 hover:qp-text-slate-900 qp-font-semibold qp-transition-all qp-duration-300 qp-ease-out qp-transform hover:qp--translate-y-0.5 hover:qp-shadow-sm qp-rounded qp-px-2 qp-py-1 hover:qp-bg-slate-50/50">{{ loginPageI18n.createAccount }}</a>
+                <a href="#" class="qp-text-sm qp-text-secondary-600 hover:qp-text-secondary-700 qp-font-semibold qp-transition-all qp-duration-300 qp-ease-out qp-transform hover:qp--translate-y-0.5 hover:qp-shadow-sm qp-rounded qp-px-2 qp-py-1 hover:qp-bg-secondary-50/50">{{ loginPageI18n.forgotPassword }}</a>
+                <a href="#" class="qp-text-sm qp-text-primary-700 hover:qp-text-primary-900 qp-font-semibold qp-transition-all qp-duration-300 qp-ease-out qp-transform hover:qp--translate-y-0.5 hover:qp-shadow-sm qp-rounded qp-px-2 qp-py-1 hover:qp-bg-primary-50/50">{{ loginPageI18n.createAccount }}</a>
             </div>
         </div>
     </div>

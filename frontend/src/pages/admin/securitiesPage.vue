@@ -142,7 +142,7 @@ export default {
     @apply qp-space-y-3 qp-w-full;
 
     .page-header {
-        @apply qp-bg-white qp-rounded-md qp-border qp-border-slate-200 qp-p-3 qp-w-full;
+        @apply qp-bg-white qp-rounded-md qp-border qp-border-primary-200 qp-p-3 qp-w-full;
 
         .header-content {
             @apply qp-flex qp-justify-between qp-items-center;
@@ -151,11 +151,11 @@ export default {
                 @apply qp-flex qp-flex-col qp-space-y-1;
 
                 .page-title {
-                    @apply qp-text-lg qp-font-bold qp-text-slate-900;
+                    @apply qp-text-lg qp-font-bold qp-text-primary-900;
                 }
 
                 .page-subtitle {
-                    @apply qp-text-sm qp-text-slate-600;
+                    @apply qp-text-sm qp-text-primary-600;
                 }
             }
 
@@ -163,7 +163,7 @@ export default {
                 @apply qp-flex qp-gap-3;
 
                 .import-btn {
-                    @apply qp-bg-blue-50 qp-text-blue-700 qp-border-blue-200 hover:qp-bg-blue-100;
+                    @apply qp-bg-secondary-50 qp-text-secondary-700 qp-border-secondary-200 hover:qp-bg-secondary-100;
                 }
             }
         }
@@ -174,17 +174,17 @@ export default {
         @apply qp-grid qp-grid-cols-1 md:qp-grid-cols-2 lg:qp-grid-cols-4 qp-gap-4;
 
         .stat-card {
-            @apply qp-bg-white qp-rounded-md qp-border qp-border-slate-200 qp-p-4 qp-flex qp-items-center qp-space-x-4;
+            @apply qp-bg-white qp-rounded-md qp-border qp-border-primary-200 qp-p-4 qp-flex qp-items-center qp-space-x-4;
 
             .stat-icon {
-                @apply qp-w-12 qp-h-12 qp-rounded-lg qp-bg-slate-100 qp-flex qp-items-center qp-justify-center qp-text-slate-600 qp-text-2xl qp-ring-1 qp-ring-slate-200;
+                @apply qp-w-12 qp-h-12 qp-rounded-lg qp-bg-primary-100 qp-flex qp-items-center qp-justify-center qp-text-primary-600 qp-text-2xl qp-ring-1 qp-ring-primary-200;
 
                 &.active {
                     @apply qp-bg-green-100 qp-text-green-600 qp-ring-green-200;
                 }
 
                 &.futures {
-                    @apply qp-bg-blue-100 qp-text-blue-600 qp-ring-blue-200;
+                    @apply qp-bg-secondary-100 qp-text-secondary-600 qp-ring-secondary-200;
                 }
 
                 &.derivatives {
@@ -196,11 +196,11 @@ export default {
                 @apply qp-flex qp-flex-col;
 
                 .stat-value {
-                    @apply qp-text-2xl qp-font-bold qp-text-slate-900;
+                    @apply qp-text-2xl qp-font-bold qp-text-primary-900;
                 }
 
                 .stat-label {
-                    @apply qp-text-sm qp-text-slate-600;
+                    @apply qp-text-sm qp-text-primary-600;
                 }
             }
         }
@@ -208,7 +208,7 @@ export default {
 
     /* Filters */
     .filters-card {
-        @apply qp-bg-white qp-rounded-md qp-ring-1 qp-ring-slate-200 qp-p-3;
+        @apply qp-bg-white qp-rounded-md qp-ring-1 qp-ring-primary-200 qp-p-3;
 
         .filters-content {
             @apply qp-space-y-4;
@@ -232,7 +232,7 @@ export default {
                     @apply qp-flex qp-flex-col qp-space-y-2;
 
                     label {
-                        @apply qp-text-sm qp-font-medium qp-text-slate-700;
+                        @apply qp-text-sm qp-font-medium qp-text-primary-700;
                     }
 
                     .filter-dropdown {

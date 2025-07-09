@@ -301,21 +301,21 @@ export default {
 </script>
 <style lang="postcss" scoped>
 .admin-layout {
-    @apply qp-flex qp-h-screen qp-bg-slate-50;
+    @apply qp-flex qp-h-screen qp-bg-primary-50;
 }
 
 /* Sidebar Styles */
 .sidebar {
-    @apply qp-fixed qp-left-0 qp-top-0 qp-h-screen qp-w-64 qp-bg-white qp-border-r qp-border-slate-200 qp-transition-all qp-duration-300 qp-flex qp-flex-col;
+    @apply qp-fixed qp-left-0 qp-top-0 qp-h-screen qp-w-64 qp-bg-white qp-border-r qp-border-primary-200 qp-transition-all qp-duration-300 qp-flex qp-flex-col;
 
     .sidebar-header {
-        @apply qp-flex qp-items-center qp-p-4 qp-border-b qp-border-slate-200 qp-relative qp-flex-shrink-0 qp-z-[1];
+        @apply qp-flex qp-items-center qp-p-4 qp-border-b qp-border-primary-200 qp-relative qp-flex-shrink-0 qp-z-[1];
 
         .brand-container {
             @apply qp-flex qp-items-center qp-gap-3 qp-min-w-0;
 
             .logo {
-                @apply qp-relative qp-flex-shrink-0 qp-w-12 qp-h-12 qp-rounded-md qp-flex qp-items-center qp-justify-center qp-p-1 qp-bg-transparent qp-border qp-border-slate-200;
+                @apply qp-relative qp-flex-shrink-0 qp-w-12 qp-h-12 qp-rounded-md qp-flex qp-items-center qp-justify-center qp-p-1 qp-bg-transparent qp-border qp-border-primary-200;
 
                 img {
                     @apply qp-w-12 qp-h-12 qp-relative qp-z-10;
@@ -326,7 +326,7 @@ export default {
                 @apply qp-min-w-0 qp-flex qp-flex-col qp-space-y-1;
 
                 .brand-name {
-                    @apply qp-text-xl qp-font-bold qp-text-slate-900 qp-leading-tight qp-truncate;
+                    @apply qp-text-xl qp-font-bold qp-text-primary-900 qp-leading-tight qp-truncate;
                     background: linear-gradient(135deg, #1e293b, #475569);
                     -webkit-background-clip: text;
                     -webkit-text-fill-color: transparent;
@@ -334,14 +334,14 @@ export default {
                 }
 
                 .brand-subtitle {
-                    @apply qp-text-xs qp-text-blue-600 qp-font-semibold qp-tracking-wide;
+                    @apply qp-text-xs qp-text-secondary-600 qp-font-semibold qp-tracking-wide;
                 }
             }
         }
     }
 
     .collapse-btn {
-        @apply qp-absolute -qp-right-3 qp-top-1/2 qp-w-6 qp-h-6 qp-bg-white qp-border-2 qp-border-slate-300 qp-rounded-full qp-flex qp-items-center qp-justify-center qp-text-slate-600 hover:qp-text-blue-600 hover:qp-border-blue-500 qp-transition-all qp-duration-200;
+        @apply qp-absolute -qp-right-3 qp-top-1/2 qp-w-6 qp-h-6 qp-bg-white qp-border-2 qp-border-primary-300 qp-rounded-full qp-flex qp-items-center qp-justify-center qp-text-primary-600 hover:qp-text-secondary-600 hover:qp-border-secondary-500 qp-transition-all qp-duration-200;
         @apply -qp-translate-y-1/2 qp-z-[100];
     }
 
@@ -360,7 +360,7 @@ export default {
                 @apply qp-mb-6;
 
                 .nav-group-title {
-                    @apply qp-text-xs qp-font-semibold qp-text-slate-400 qp-uppercase qp-tracking-wide qp-mb-2 qp-px-1;
+                    @apply qp-text-xs qp-font-semibold qp-text-primary-400 qp-uppercase qp-tracking-wide qp-mb-2 qp-px-1;
                 }
 
                 .nav-items {
@@ -370,14 +370,14 @@ export default {
                         @apply qp-list-none;
 
                         .nav-link {
-                            @apply qp-flex qp-items-center qp-gap-3 qp-px-3 qp-py-2.5 qp-rounded-lg qp-text-slate-600 qp-transition-all qp-duration-200 qp-relative qp-no-underline hover:qp-bg-slate-50 hover:qp-text-slate-900;
+                            @apply qp-flex qp-items-center qp-gap-3 qp-px-3 qp-py-2.5 qp-rounded-lg qp-text-primary-600 qp-transition-all qp-duration-200 qp-relative qp-no-underline hover:qp-bg-primary-50 hover:qp-text-primary-900;
 
                             &.active {
-                                @apply qp-bg-blue-50 qp-text-blue-700 qp-font-medium;
+                                @apply qp-bg-secondary-50 qp-text-secondary-700 qp-font-medium;
 
                                 &::before {
                                     @apply qp-content-[''];
-                                    @apply qp-absolute qp-left-0 qp-top-1/2 qp-w-0.5 qp-h-4 qp-bg-blue-600 qp-rounded-r -qp-translate-y-1/2;
+                                    @apply qp-absolute qp-left-0 qp-top-1/2 qp-w-0.5 qp-h-4 qp-bg-secondary-600 qp-rounded-r -qp-translate-y-1/2;
                                 }
                             }
 
@@ -445,7 +445,7 @@ export default {
     }
 
     .top-header {
-        @apply qp-sticky qp-top-0 qp-z-20 qp-bg-white qp-border-b qp-border-slate-200 qp-px-6 qp-py-3 qp-flex qp-items-center qp-justify-between;
+        @apply qp-sticky qp-top-0 qp-z-20 qp-bg-white qp-border-b qp-border-primary-200 qp-px-6 qp-py-3 qp-flex qp-items-center qp-justify-between;
 
         .header-left {
             @apply qp-flex qp-flex-col qp-gap-1;
@@ -454,28 +454,28 @@ export default {
                 @apply qp-mb-1;
 
                 .breadcrumb-list {
-                    @apply qp-flex qp-items-center qp-gap-1 qp-text-sm qp-text-slate-500;
+                    @apply qp-flex qp-items-center qp-gap-1 qp-text-sm qp-text-primary-500;
 
                     .breadcrumb-item {
                         @apply qp-flex qp-items-center qp-gap-1;
 
                         .breadcrumb-link {
-                            @apply qp-text-slate-500 hover:qp-text-blue-600 qp-transition-colors qp-no-underline;
+                            @apply qp-text-primary-500 hover:qp-text-secondary-600 qp-transition-colors qp-no-underline;
                         }
 
                         .breadcrumb-separator {
-                            @apply qp-text-slate-300;
+                            @apply qp-text-primary-300;
                         }
 
                         .breadcrumb-current {
-                            @apply qp-text-slate-700 qp-font-medium;
+                            @apply qp-text-primary-700 qp-font-medium;
                         }
                     }
                 }
             }
 
             .page-title {
-                @apply qp-text-xl qp-font-bold qp-text-slate-900;
+                @apply qp-text-xl qp-font-bold qp-text-primary-900;
             }
         }
 
@@ -490,7 +490,7 @@ export default {
                 }
 
                 .search-shortcut {
-                    @apply qp-absolute qp-right-3 qp-px-2 qp-py-1 qp-text-xs qp-bg-slate-100 qp-text-slate-500 qp-rounded qp-font-mono qp-pointer-events-none;
+                    @apply qp-absolute qp-right-3 qp-px-2 qp-py-1 qp-text-xs qp-bg-primary-100 qp-text-primary-500 qp-rounded qp-font-mono qp-pointer-events-none;
                 }
             }
 
@@ -506,13 +506,13 @@ export default {
                 @apply qp-relative;
 
                 .user-profile-btn {
-                    @apply qp-bg-slate-50 qp-border qp-border-slate-200 qp-rounded-lg hover:qp-bg-slate-100 qp-transition-all qp-duration-200;
+                    @apply qp-bg-primary-50 qp-border qp-border-primary-200 qp-rounded-lg hover:qp-bg-primary-100 qp-transition-all qp-duration-200;
 
                     .user-profile-content {
                         @apply qp-flex qp-items-center qp-gap-3;
 
                         .user-avatar {
-                            @apply qp-w-8 qp-h-8 qp-bg-blue-600 qp-rounded-lg qp-flex qp-items-center qp-justify-center qp-overflow-hidden;
+                            @apply qp-w-8 qp-h-8 qp-bg-secondary-600 qp-rounded-lg qp-flex qp-items-center qp-justify-center qp-overflow-hidden;
 
                             img {
                                 @apply qp-w-full qp-h-full qp-object-cover;
@@ -527,15 +527,15 @@ export default {
                             @apply qp-flex qp-flex-col qp-text-left;
 
                             .user-name {
-                                @apply qp-text-sm qp-font-semibold qp-text-slate-900;
+                                @apply qp-text-sm qp-font-semibold qp-text-primary-900;
                             }
 
                             .user-role {
-                                @apply qp-text-xs qp-text-slate-500;
+                                @apply qp-text-xs qp-text-primary-500;
                             }
 
                             .user-dropdown-icon {
-                                @apply qp-text-slate-400 qp-text-sm;
+                                @apply qp-text-primary-400 qp-text-sm;
                             }
                         }
                     }
@@ -545,7 +545,7 @@ export default {
     }
 
     .page-content {
-        @apply qp-flex qp-p-6 qp-overflow-y-auto qp-bg-slate-50 qp-h-full;
+        @apply qp-flex qp-p-6 qp-overflow-y-auto qp-bg-primary-50 qp-h-full;
         background-image: radial-gradient(circle at 1px 1px, rgba(71, 85, 105, 0.15) 1px, transparent 0);
         background-size: 20px 20px;
     }
