@@ -9,6 +9,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@primeuix/themes": "^1.2.1",
     "@primevue/auto-import-resolver": "^4.3.5",
     "@primevue/themes": "^4.3.5",
     "@vueuse/core": "^13.4.0",
