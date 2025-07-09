@@ -13,7 +13,7 @@ from app.repositories.securities import SecurityRepository, ExchangeRepository, 
 from app.schemas.base import APIResponse, PaginatedResponse, PaginationMeta
 from app.schemas.security import SecurityResponse, ExchangeResponse, FutureResponse, ImportStatusResponse, SecurityStatsResponse
 from app.tasks.import_securities import import_securities_from_dhan
-from app.utils.enum import TaskType, SecuritySegment
+from app.utils.enum import TaskType, SecuritySegment, SecurityType
 from app.utils.logger import get_logger
 
 router = APIRouter()
@@ -21,7 +21,7 @@ logger = get_logger(__name__)
 
 
 @router.get("", response_model=PaginatedResponse[SecurityResponse])
-async def get_securities(skip: int = 0, limit: int = 100, exchange_id: Optional[UUID] = None, security_type: Optional[str] = None, segment: Optional[str] = None, sector: Optional[str] = None, active_only: bool = True, db: Session = Depends(get_db), current_user=Depends(get_current_active_user)):
+async def get_securities(skip: int = 0, limit: int = 100, exchange_id: Optional[UUID] = None, security_type: Optional[str] = SecurityType.EQUITY.value, segment: Optional[str] = None, sector: Optional[str] = None, active_only: bool = True, db: Session = Depends(get_db), current_user=Depends(get_current_active_user)):
     """Get list of securities with filtering and pagination."""
     try:
         security_repo = SecurityRepository(db)
@@ -51,7 +51,7 @@ async def get_securities(skip: int = 0, limit: int = 100, exchange_id: Optional[
         pagination = PaginationMeta.create(total=total, page=(skip // limit) + 1, per_page=limit)
 
         # Convert to response format
-        security_responses = [SecurityResponse.from_orm(security) for security in securities]
+        security_responses = [SecurityResponse.model_validate(security) for security in securities]
 
         return PaginatedResponse(data=security_responses, pagination=pagination, message="Securities retrieved successfully")
 
@@ -66,14 +66,14 @@ async def get_security_stats(db=Depends(get_db), current_user=Depends(get_curren
     try:
         security_repo = SecurityRepository(db)
 
-        total_securities = security_repo.get_all()
-        total = security_repo.count()
-        active_securities = security_repo.get_many_by_field('is_active', True).count()
-        active = security_repo.count()
-        futures_securities = security_repo.get_securities_by_segment(SecuritySegment.DERIVATIVE.value)
-        futures = security_repo.count()
-        derivatives_eligible = security_repo.get_many_by_field('is_derivatives_eligible', True)
-        derivatives = security_repo.count()
+        total_securities = security_repo.get_all(limit=None)
+        total = len(total_securities)
+        active_securities = security_repo.get_many_by_field('is_active', True, limit=None)
+        active = len(active_securities)
+        futures_securities = security_repo.get_securities_by_segment(SecuritySegment.DERIVATIVE.value, limit=None)
+        futures = len(futures_securities)
+        derivatives_eligible = security_repo.get_many_by_field('is_derivatives_eligible', True, limit=None)
+        derivatives = len(derivatives_eligible)
 
         statsResponse = SecurityStatsResponse(total=total, active=active, futures=futures, derivatives=derivatives)
 
