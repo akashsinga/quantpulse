@@ -41,7 +41,7 @@
                 <div class="filter-controls">
                     <div class="filter-group">
                         <label>{{ securitiesI18n.filters.exchange }}</label>
-                        <Select class="filter-dropdown" v-model="filters.exchange_id" :placeholder="securitiesI18n.filters.placeholders.exchange" optionLabel="name" optionValue="id" size="small"></Select>
+                        <Select class="filter-dropdown" v-model="filters.exchange_id" :placeholder="securitiesI18n.filters.placeholders.exchange" :options="exchanges" optionLabel="name" optionValue="id" size="small"></Select>
                     </div>
                     <div class="filter-group">
                         <label>{{ securitiesI18n.filters.securityType }}</label>
@@ -61,25 +61,21 @@
     </div>
 </template>
 <script>
+import { mapState, mapActions } from 'pinia'
+
+import { useSecuritiesStore } from '@/stores/securities'
 export default {
     data() {
         return {
-            filters: { search: '', exchange_id: null, security_type: null, segment: null, sector: null, is_active: null },
-            securitiesI18n: this.$tm('pages.securities'),
-            stats: [
-                { id: 'total', icon: 'ph ph-database', value: 0 },
-                { id: 'active', icon: 'ph ph-check-circle', value: 0 },
-                { id: 'futures', icon: 'ph ph-chart-line', value: 0 },
-                { id: 'derivatives', icon: 'ph ph-lightning', value: 0 }
-            ]
+            securitiesI18n: this.$tm('pages.securities')
         }
     },
     computed: {
-        hasActiveFilters() {
-            return !!(this.filters.search || this.filters.exchange_id || this.filters.security_type || this.filters.segment || this.filters.is_active !== null)
-        }
+        ...mapState(useSecuritiesStore, ['exchanges', 'filters', 'stats', 'hasActiveFilters']),
     },
     methods: {
+        ...mapActions(useSecuritiesStore, ['fetchExchanges', 'fetchSecurities', 'fetchSecuritiesStats', 'setValue']),
+
         /**
          * Utility function to format number.
          * @param {Number} value
@@ -90,10 +86,50 @@ export default {
         },
 
         /**
+         *  Loads the exchanges data in the state.
+         */
+        getExchanges: async function () {
+            const response = await this.fetchExchanges()
+            if (response.error) {
+                this.$toast.add({ severity: 'error', summary: this.$tm('common.failed'), detail: this.securitiesI18n.messages.errorWhileFetchingExchanges, life: 3000 })
+            }
+        },
+
+        /**
+         * Loads the securities data in the state.
+         */
+        getSecurities: async function () {
+            const response = await this.fetchSecurities()
+            if (response.error) {
+                this.$toast.add({ severity: 'error', summary: this.$tm('common.failed'), detail: this.securitiesI18n.messages.errorWhileFetchingSecurities, life: 3000 })
+            }
+        },
+
+        /**
+         * Loads the securities cache in state.
+         */
+        getSecuritiesStats: async function () {
+            const response = await this.fetchSecuritiesStats()
+            if (response.error) {
+                this.$toast.add({ severity: 'error', summary: this.$tm('common.failed'), detail: this.securitiesI18n.messages.errorWhileFetchingSecurityStats, life: 3000 })
+            }
+        },
+
+        /**
+         * Fetches all the API's needed for the screen.
+         */
+        loadData: async function () {
+            await this.getSecuritiesStats()
+            await this.getExchanges()
+            await this.getSecurities()
+        },
+
+        /**
          * Initializes the metadata needed for this page.
          */
-        init: function () {
-            this.stats = this.$lodash.map(this.stats, (stat) => ({ ...stat, title: this.securitiesI18n.stats[stat.id] }))
+        init: async function () {
+            this.setValue('stats', this.$lodash.map(this.stats, (stat) => ({ ...stat, title: this.securitiesI18n.stats[stat.id] })))
+            await this.loadData()
         }
     },
     mounted() {

@@ -1,9 +1,125 @@
 import { defineStore } from "pinia";
 
-const state = () => ({})
+const state = () => ({
+    exchanges: [],
+    filters: { search: null, exchange_id: null, security_type: null, segment: null, sector: null, is_active: null },
+    pagination: { skip: 0, limit: 25 },
+    securities: [],
+    securityTypes: [],
+    segments: [],
+    sort: { field: null, order: null },
+    stats: [
+        { id: 'total', icon: 'ph ph-database', value: 0 },
+        { id: 'active', icon: 'ph ph-check-circle', value: 0 },
+        { id: 'futures', icon: 'ph ph-chart-line', value: 0 },
+        { id: 'derivatives', icon: 'ph ph-lightning', value: 0 }
+    ],
+    isLoading: false,
+})
 
-const actions = {}
+const actions = {
 
-const getters = {}
+    /**
+     * Fetches all active exchanges.
+     * @param {Object} params
+     */
+    fetchExchanges: async function (params) {
+        try {
+            const response = await this.$http.get(`/api/v1/exchanges`, { params: params })
+            this.exchanges = response.data.data
+            return { error: false, data: response.data.data }
+        } catch (error) {
+            return { error: true, data: error }
+        }
+    },
+
+    /**
+     * Fetch securities based on params.
+     * @param {Object} params
+     */
+    fetchSecurities: async function (params = {}) {
+        this.isLoading = true
+        try {
+            const queryParams = { skip: this.pagination.skip, limit: this.pagination.limit, ...this.getActiveFilters(), ...params }
+            if (this.sort.field) {
+                queryParams.sort_by = this.sort.field
+                queryParams.sort_order = this.sort.order === 1 ? 'asc' : 'desc'
+            }
+            const response = await this.$http.get('/api/v1/securities', { params: queryParams })
+            this.securities = response.data.data
+            return { error: false, data: response.data.data }
+        } catch (error) {
+            return { error: true, data: error }
+        } finally {
+            this.isLoading = false
+        }
+    },
+
+    /**
+     * Fetches the securities stats.
+     * @returns {Object} Generic object
+     */
+    fetchSecuritiesStats: async function () {
+        try {
+            const response = await this.$http.get('/api/v1/securities/stats')
+            this.$lodash.forEach(this.stats, (stat) => {
+                stat.value = response.data.data[stat.id]
+            })
+            return { error: false, data: response.data }
+        } catch (error) {
+            return { error: true, data: error }
+        }
+    },
+
+    /**
+     * Prepares active filters for API params.
+     */
+    getActiveFilters: function () {
+        const activeFilters = {}
+
+        if (this.filters.search) {
+            activeFilters.q = this.filters.search
+        }
+
+        if (this.filters.exchange_id) {
+            activeFilters.exchange_id = this.filters.exchange_id
+        }
+
+        if (this.filters.security_type) {
+            activeFilters.security_type = this.filters.security_type
+        }
+
+        if (this.filters.segment) {
+            activeFilters.segment = this.filters.segment
+        }
+
+        if (this.filters.sector) {
+            activeFilters.sector = this.filters.sector
+        }
+
+        if (this.filters.is_active !== null) {
+            activeFilters.is_active = this.filters.is_active
+        }
+
+        return activeFilters
+    },
+
+    // <----- Mutations ----->
+
+    /**
+     * Sets value for a property using path.
+     * @param {String} path
+     * @param {*} value
+     */
+    setValue: function (path, value) {
+        this.$lodash.set(this, path, value)
+    }
+}
+
+const getters = {
+    hasActiveFilters: (state) => {
+        return !!(state.filters.search || state.filters.exchange_id || state.filters.security_type || state.filters.segment || state.filters.is_active !== null)
+    }
+}
 
 export const useSecuritiesStore = defineStore('securities', { state, actions, getters })

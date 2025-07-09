@@ -2,7 +2,9 @@ export const en = {
     common: {
         search: 'Search ...',
         refresh: 'Refresh',
-        clear: 'Clear'
+        clear: 'Clear',
+        success: 'Success',
+        failed: 'Failed'
     },
     pages: {
         404: {
@@ -149,6 +151,11 @@ export const en = {
                     segment: 'All Segments',
                     status: 'All Status'
                 }
+            },
+            messages: {
+                errorWhileFetchingExchanges: 'Error occurred while fetching exchanges. Please try again later.',
+                errorWhileFetchingSecurities: 'Error occurred while fetching securities. Please try again later.',
+                errroWhileFetchingSecurityStats: 'Error occurred while fetching security stats. Please try again later'
             }
         }
     },
