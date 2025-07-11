@@ -8,7 +8,7 @@
                 </div>
                 <div class="header-right">
                     <Button class="import-btn" icon="ph ph-download" :label="securitiesI18n.importSecurities" size="small" severity="secondary" @click="showImportDialog = true"></Button>
-                    <Button icon="ph ph-arrow-clockwise" :label="$tm('common.refresh')" size="small"></Button>
+                    <Button icon="ph ph-arrow-clockwise" :label="$tm('common.refresh')" size="small" @click="refreshSecurities"></Button>
                 </div>
             </div>
         </div>
@@ -131,6 +131,7 @@ export default {
     data() {
         return {
             securitiesI18n: this.$tm('pages.securities'),
+            isRefreshing: false,
             columns: [
                 { id: 'symbol', sortable: true },
                 { id: 'name', sortable: true },
@@ -252,6 +253,16 @@ export default {
             this.setSort(event.sortField, event.sortOrder)
             await this.getSecurities()
         },
+
+        /**
+         * Handles full page refresh flow.
+         */
+        refreshSecurities: async function () {
+            this.isRefreshing = true
+            await this.loadData()
+            this.isRefreshing = false
+            this.$toast.add({ severity: 'success', summary: this.$tm('common.success'), detail: this.securitiesI18n.refreshSuccessful, life: 3000 })
+        }
     },
     mounted() {
         this.init()

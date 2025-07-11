@@ -142,6 +142,7 @@ export const en = {
             searchPlaceholder: 'Search securities by symbol or name',
             noSecuritiesFound: 'No Securities Found',
             tryAdjustingYourSearchCriteria: 'Try adjusting your search criteria or import securities data',
+            refreshSuccessful: 'Securities data refreshed',
             stats: {
                 total: 'Total Securities',
                 active: 'Active Securities',
