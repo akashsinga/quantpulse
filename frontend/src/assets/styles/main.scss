@@ -40,6 +40,7 @@
 
     html {
         font-family: 'Geist', system-ui, sans-serif;
+        @apply qp-text-sm;
         @apply qp-scroll-smooth;
         @apply qp-text-gray-800;
     }
@@ -50,5 +51,26 @@
 
     #app {
         @apply qp-flex qp-flex-col qp-min-h-screen;
+    }
+
+    // Primevue Datatable override styles
+    .p-datatable {
+        .p-datatable-table-container {
+            .p-datatable-thead {
+                @apply qp-text-base;
+            }
+
+            .p-datatable-tbody {
+                @apply qp-text-sm;
+
+                tr td {
+                    @apply qp-py-1;
+                }
+            }
+        }
+
+        .p-datatable-paginator-bottom {
+            @apply qp-text-sm;
+        }
     }
 }

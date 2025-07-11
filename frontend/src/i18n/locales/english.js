@@ -4,7 +4,12 @@ export const en = {
         refresh: 'Refresh',
         clear: 'Clear',
         success: 'Success',
-        failed: 'Failed'
+        failed: 'Failed',
+        loading: 'Loading ...',
+        activate: 'Activate',
+        deactivate: 'Deactivate',
+        active: 'Active',
+        inactive: 'Inactive'
     },
     pages: {
         404: {
@@ -134,11 +139,32 @@ export const en = {
             securitiesManagementSubtitle: 'Manage and monitor securities data across all exchanges',
             importSecurities: 'Import Securities',
             searchPlaceholder: 'Search securities by symbol or name',
+            noSecuritiesFound: 'No Securities Found',
+            tryAdjustingYourSearchCriteria: 'Try adjusting your search criteria or import securities data',
             stats: {
                 total: 'Total Securities',
                 active: 'Active Securities',
                 futures: 'Futures Contracts',
                 derivatives: 'Derivatives Eligible'
+            },
+            securityTypes: {
+                EQUITY: 'Cash Stocks',
+                INDEX: 'Index',
+                FUTSTK: 'Stock Futures',
+                FUTIDX: 'Index Futures',
+                FUTCOM: 'Commodity Futures',
+                FUTCUR: 'Currency Futures',
+                OPTSTK: 'Stock Options',
+                OPTIDX: 'Index Options',
+                OPTCOM: 'Commodity Options',
+                OPTCUR: 'Currency Options'
+            },
+            segments: {
+                EQUITY: 'Cash Stocks',
+                DERIVATIVE: 'Derivatives',
+                CURRENCY: 'Currency',
+                COMMODITY: 'Commodities',
+                INDEX: 'Indices'
             },
             filters: {
                 exchange: 'Exchange',
@@ -151,6 +177,19 @@ export const en = {
                     segment: 'All Segments',
                     status: 'All Status'
                 }
+            },
+            tableHeaders: {
+                symbol: 'Symbol',
+                name: 'Name',
+                security_type: 'Security Type',
+                segment: 'Segment',
+                sector: 'Sector',
+                industry: 'Industry',
+                actions: 'Actions'
+            },
+            tooltips: {
+                viewSecurity: 'View Security',
+                editSecurity: 'Edit Security'
             },
             messages: {
                 errorWhileFetchingExchanges: 'Error occurred while fetching exchanges. Please try again later.',

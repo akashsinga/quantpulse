@@ -5,8 +5,26 @@ const state = () => ({
     filters: { search: null, exchange_id: null, security_type: null, segment: null, sector: null, is_active: null },
     pagination: { skip: 0, limit: 25 },
     securities: [],
-    securityTypes: [],
-    segments: [],
+    securityTypes: [
+        { id: 'EQUITY' },
+        { id: 'INDEX' },
+        { id: 'FUTSTK' },
+        { id: 'FUTIDX' },
+        { id: 'FUTCOM' },
+        { id: 'FUTCUR' },
+        { id: 'OPTSTK' },
+        { id: 'OPTIDX' },
+        { id: 'OPTCOM' },
+        { id: 'OPTCUR' }
+    ],
+    segments: [
+        { id: 'EQUITY' },
+        { id: 'DERIVATIVE' },
+        { id: 'CURRENCY' },
+        { id: 'COMMODITY' },
+        { id: 'INDEX' }
+    ],
+    totalRecords: 0,
     sort: { field: null, order: null },
     stats: [
         { id: 'total', icon: 'ph ph-database', value: 0 },
@@ -47,6 +65,7 @@ const actions = {
             }
             const response = await this.$http.get('/api/v1/securities', { params: queryParams })
             this.securities = response.data.data
+            this.totalRecords = response.data.pagination.total
             return { error: false, data: response.data.data }
         } catch (error) {
             return { error: true, data: error }
@@ -104,6 +123,13 @@ const actions = {
         return activeFilters
     },
 
+    /**
+     * Clears filters.
+     */
+    clearFilters: function () {
+        this.filters = { search: '', exchange_id: null, security_type: null, segment: null, sector: null, is_active: null }
+    },
+
     // <----- Mutations ----->
 
     /**
@@ -113,6 +139,40 @@ const actions = {
      */
     setValue: function (path, value) {
         this.$lodash.set(this, path, value)
+    },
+
+    /**
+     * Sets pagination values.
+     * @param {Number} skip
+     * @param {Number} limit
+     */
+    setPagination: function (skip, limit) {
+        this.pagination = { skip, limit }
+    },
+
+    /**
+     * Sets Filters params.
+     * @param {Object} newFilters
+     */
+    setFilters: function (newFilters) {
+        this.filters = { ...this.filters, ...newFilters }
+    },
+
+    /**
+     * Sets sort order
+     * @param {String} field
+     * @param {String} order
+     */
+    setSort: function (field, order) {
+        this.sort.field = field
+        this.sort.order = order
+    },
+
+    /**
+     * Resets full state.
+     */
+    resetState: function () {
+        Object.assign(this, state())
     }
 }
 

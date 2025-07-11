@@ -341,7 +341,7 @@ export default {
     }
 
     .collapse-btn {
-        @apply qp-absolute -qp-right-3 qp-top-1/2 qp-w-6 qp-h-6 qp-bg-white qp-border-2 qp-border-primary-300 qp-rounded-full qp-flex qp-items-center qp-justify-center qp-text-primary-600 hover:qp-text-secondary-600 hover:qp-border-secondary-500 qp-transition-all qp-duration-200;
+        @apply qp-absolute -qp-right-3 qp-top-1/2 qp-w-6 qp-h-6 qp-bg-white qp-border qp-border-primary-300 qp-rounded-full qp-flex qp-items-center qp-justify-center qp-text-primary-600 hover:qp-text-secondary-600 hover:qp-border-secondary-500 qp-transition-all qp-duration-200;
         @apply -qp-translate-y-1/2 qp-z-[100];
     }
 
@@ -551,7 +551,7 @@ export default {
     }
 
     .page-content {
-        @apply qp-flex qp-p-6 qp-overflow-y-auto qp-bg-primary-50 qp-h-full;
+        @apply qp-flex qp-p-5 qp-overflow-y-auto qp-bg-primary-50 qp-h-full qp-mb-5;
         background-image: radial-gradient(circle at 1px 1px, rgba(71, 85, 105, 0.15) 1px, transparent 0);
         background-size: 20px 20px;
     }
