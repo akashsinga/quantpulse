@@ -3,6 +3,7 @@ export const en = {
         search: 'Search ...',
         refresh: 'Refresh',
         clear: 'Clear',
+        cancel: 'Cancel',
         success: 'Success',
         failed: 'Failed',
         loading: 'Loading ...',
@@ -195,6 +196,12 @@ export const en = {
                 errorWhileFetchingExchanges: 'Error occurred while fetching exchanges. Please try again later.',
                 errorWhileFetchingSecurities: 'Error occurred while fetching securities. Please try again later.',
                 errroWhileFetchingSecurityStats: 'Error occurred while fetching security stats. Please try again later'
+            },
+            importDialog: {
+                importTitle: 'Import Securities from Dhan API',
+                importSubtitle: 'This will fetch the latest securities data from Dhan and update the database.',
+                forceRefresh: 'Force refresh existing securities',
+                startImport: 'Start Import'
             }
         }
     },

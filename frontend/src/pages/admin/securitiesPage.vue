@@ -7,7 +7,7 @@
                     <div class="page-subtitle">{{ securitiesI18n.securitiesManagementSubtitle }}</div>
                 </div>
                 <div class="header-right">
-                    <Button class="import-btn" icon="ph ph-download" :label="securitiesI18n.importSecurities" size="small" severity="secondary"></Button>
+                    <Button class="import-btn" icon="ph ph-download" :label="securitiesI18n.importSecurities" size="small" severity="secondary" @click="showImportDialog = true"></Button>
                     <Button icon="ph ph-arrow-clockwise" :label="$tm('common.refresh')" size="small"></Button>
                 </div>
             </div>
@@ -81,6 +81,10 @@
                             <span>{{ slotProps.data.symbol }}</span>
                             <Badge :value="slotProps.data.exchange?.code" severity="secondary" size="small"></Badge>
                         </div>
+                        <div v-else-if="column.id === 'segment'" class="qp-flex qp-items-center qp-space-x-2">
+                            <span>{{ slotProps.data.segment }}</span>
+                            <Badge v-if="!(slotProps.data.segment === slotProps.data.security_type)" severity="secondary" :value="slotProps.data.security_type" size="small"></Badge>
+                        </div>
                         <div v-else-if="column.id === 'actions'" class="qp-flex qp-items-center qp-space-x-1.5">
                             <Button icon="ph ph-eye" size="small" severity="primary" v-tooltip="securitiesI18n.tooltips.viewSecurity"></Button>
                             <Button icon="ph ph-pencil" size="small" severity="info" v-tooltip="securitiesI18n.tooltips.editSecurity"></Button>
@@ -93,6 +97,29 @@
                 </Column>
             </DataTable>
         </div>
+
+        <!-- Import Dialog -->
+        <Dialog class="import-dialog" v-model:visible="showImportDialog" modal :style="{ width: '500px' }">
+            <div class="import-content">
+                <div class="import-info">
+                    <i class="ph ph-info-circle"></i>
+                    <div>
+                        <h4>{{ securitiesI18n.importDialog.importTitle }}</h4>
+                        <p>{{ securitiesI18n.importDialog.importSubtitle }}</p>
+                    </div>
+                </div>
+                <div class="import-options">
+                    <div class="option-item">
+                        <Checkbox id="force_refresh" v-model="importOptions.force_refresh"></Checkbox>
+                        <label for="force_refresh">{{ securitiesI18n.importDialog.forceRefresh }}</label>
+                    </div>
+                </div>
+            </div>
+            <template #footer>
+                <Button :label="$tm('common.cancel')" text @click="showImportDialog = false"></Button>
+                <Button :label="securitiesI18n.importDialog.startImport" icon="ph ph-download"></Button>
+            </template>
+        </Dialog>
     </div>
 </template>
 <script>
@@ -115,7 +142,9 @@ export default {
             statusOptions: [
                 { title: this.$tm('common.active'), value: true },
                 { title: this.$tm('common.inactive'), value: false }
-            ]
+            ],
+            showImportDialog: false,
+            importOptions: { force_refresh: false }
         }
     },
     computed: {
@@ -364,6 +393,43 @@ export default {
 
             p {
                 @apply qp-mt-4 qp-text-primary-600;
+            }
+        }
+    }
+}
+
+/* Import Dialog */
+.import-dialog {
+    @apply qp-max-w-lg;
+
+    .import-content {
+        @apply qp-space-y-6;
+
+        .import-info {
+            @apply qp-flex qp-gap-3 qp-p-4 qp-bg-secondary-50 qp-rounded-md qp-border qp-border-secondary-200;
+
+            i {
+                @appyl qp-text-secondary-600 qp-text-xl qp-flex-shrink-0 qp-mt-1;
+            }
+
+            h4 {
+                @apply qp-font-semibold qp-text-primary-900 qp-mb-1;
+            }
+
+            p {
+                @apply qp-text-sm qp-text-primary-600;
+            }
+        }
+
+        .import-options {
+            @apply qp-space-y-3;
+
+            .option-item {
+                @apply qp-flex qp-items-center qp-gap-2;
+
+                label {
+                    @apply qp-text-sm qp-text-primary-700;
+                }
             }
         }
     }
