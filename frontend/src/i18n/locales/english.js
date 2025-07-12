@@ -6,11 +6,27 @@ export const en = {
         cancel: 'Cancel',
         success: 'Success',
         failed: 'Failed',
+        error: 'Error',
         loading: 'Loading ...',
         activate: 'Activate',
         deactivate: 'Deactivate',
         active: 'Active',
-        inactive: 'Inactive'
+        inactive: 'Inactive',
+        status: 'Status',
+        step: 'Step',
+        jobStatus: {
+            PENDING: "PENDING",
+            RECEIVED: "RECEIVED",
+            STARTED: "STARTED",
+            PROGRESS: "PROGRESS",
+            PROCESSING: "PROCESSING",
+            PARTIAL_SUCCESS: "PARTIAL_SUCCESS",
+            SUCCESS: "SUCCESS",
+            FAILURE: "FAILURE",
+            RETRY: "RETRY",
+            REVOKED: "REVOKED",
+            CANCELLED: "CANCELLED"
+        }
     },
     pages: {
         404: {
@@ -143,6 +159,8 @@ export const en = {
             noSecuritiesFound: 'No Securities Found',
             tryAdjustingYourSearchCriteria: 'Try adjusting your search criteria or import securities data',
             refreshSuccessful: 'Securities data refreshed',
+            importProcessStarted: 'Securities import triggered successfully.',
+            failedToStartImport: 'Failed to trigger securities import.',
             stats: {
                 total: 'Total Securities',
                 active: 'Active Securities',

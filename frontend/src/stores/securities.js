@@ -33,6 +33,11 @@ const state = () => ({
         { id: 'derivatives', icon: 'ph ph-lightning', value: 0 }
     ],
     isLoading: false,
+    importStatus: {
+        isImporting: false,
+        taskId: null,
+        progress: { percentage: 0, message: '', status: 'PENDING', result: null }
+    }
 })
 
 const actions = {
@@ -128,6 +133,44 @@ const actions = {
      */
     clearFilters: function () {
         this.filters = { search: '', exchange_id: null, security_type: null, segment: null, sector: null, is_active: null }
+    },
+
+    /**
+     * Starts Import.
+     * @param {Object} options - Import Configuration
+     * @returns {Object}
+     */
+    startImport: async function (options = {}) {
+        this.importStatus.isImporting = true
+        try {
+            const response = await this.$http.post(`/api/v1/securities/import`, options)
+            this.importStatus.taskId = response.data.data.task_id
+            return { error: false, data: response.data.data }
+        } catch (error) {
+            this.importStatus.isImporting = false
+            return { error: true, data: error }
+        }
+    },
+
+    /**
+     * Used by page polling to fetch import status for a taskId.
+     * @param {String} taskId
+     * @returns {Object}
+     */
+    getImportStatus: async function (taskId) {
+        try {
+            const response = await this.$http.get(`/api/v1/securities/import/status/${taskId}`)
+            const status = response.data.data
+
+            this.importStatus.progress = { percentage: status.progress_percentage || 0, message: status.message || '', status: status.status, result: status.result_data }
+
+            if (status.status in ['SUCCESS', 'FAILURE']) {
+                this.importStatus.isImporting = false
+            }
+            return { error: false, data: status }
+        } catch (error) {
+            return { error: true, data: error }
+        }
     },
 
     // <----- Mutations ----->

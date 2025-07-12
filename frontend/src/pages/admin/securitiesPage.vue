@@ -1,5 +1,19 @@
 <template>
     <div class="securities-page">
+        <div v-if="showImportProgress" class="import-status-card">
+            <div class="qp-flex qp-items-center qp-justify-between">
+                <div class="status-item">
+                    <label>{{ $tm('common.status') }}: </label>
+                    <span>{{ statusI18n[importStatus.progress.status] }}</span>
+                </div>
+                <div class="status-item">
+                    <span>{{ importStatus.progress.message }}</span>
+                </div>
+                <Button size="small" severity="secondary" icon="ph ph-x" @click="showImportProgress = false"></Button>
+            </div>
+            <ProgressBar :value="importStatus.progress.percentage"></ProgressBar>
+        </div>
+
         <div class="page-header">
             <div class="header-content">
                 <div class="header-left">
@@ -34,7 +48,7 @@
                         <InputIcon class="ph ph-magnifying-glass"></InputIcon>
                         <InputText class="search-input" v-model="filters.search" :placeholder="securitiesI18n.searchPlaceholder" size="small" @input="debouncedSearch"></InputText>
                     </IconField>
-                    <Button v-if="hasActiveFilters" text :label="$tm('common.clear')" size="small" icon="ph ph-x" @click="clearAllFilters"></Button>
+                    <Button v-if="hasActiveFilters" :label="$tm('common.clear')" size="small" severity="danger" icon="ph ph-x" @click="clearAllFilters"></Button>
                 </div>
 
                 <!-- Filter Groups -->
@@ -117,7 +131,7 @@
             </div>
             <template #footer>
                 <Button :label="$tm('common.cancel')" text @click="showImportDialog = false"></Button>
-                <Button :label="securitiesI18n.importDialog.startImport" icon="ph ph-download"></Button>
+                <Button :label="securitiesI18n.importDialog.startImport" icon="ph ph-download" @click="triggerImportPipeline"></Button>
             </template>
         </Dialog>
     </div>
@@ -131,6 +145,7 @@ export default {
     data() {
         return {
             securitiesI18n: this.$tm('pages.securities'),
+            statusI18n: this.$tm('common.jobStatus'),
             isRefreshing: false,
             columns: [
                 { id: 'symbol', sortable: true },
@@ -145,14 +160,16 @@ export default {
                 { title: this.$tm('common.inactive'), value: false }
             ],
             showImportDialog: false,
-            importOptions: { force_refresh: false }
+            showImportProgress: false,
+            importOptions: { force_refresh: false },
+            progressTimer: null
         }
     },
     computed: {
-        ...mapState(useSecuritiesStore, ['securities', 'exchanges', 'filters', 'stats', 'securityTypes', 'segments', 'isLoading', 'pagination', 'totalRecords', 'hasActiveFilters']),
+        ...mapState(useSecuritiesStore, ['securities', 'exchanges', 'filters', 'stats', 'securityTypes', 'segments', 'importStatus', 'isLoading', 'pagination', 'totalRecords', 'hasActiveFilters']),
     },
     methods: {
-        ...mapActions(useSecuritiesStore, ['fetchExchanges', 'fetchSecurities', 'fetchSecuritiesStats', 'setValue', 'setPagination', 'setSort', 'clearFilters']),
+        ...mapActions(useSecuritiesStore, ['fetchExchanges', 'fetchSecurities', 'fetchSecuritiesStats', 'startImport', 'getImportStatus', 'setValue', 'setPagination', 'setSort', 'clearFilters']),
 
         /**
          * Applies filters
@@ -262,6 +279,44 @@ export default {
             await this.loadData()
             this.isRefreshing = false
             this.$toast.add({ severity: 'success', summary: this.$tm('common.success'), detail: this.securitiesI18n.refreshSuccessful, life: 3000 })
+        },
+
+        /**
+         * Triggers Import Pipeline and Tracks the Progress.
+         */
+        triggerImportPipeline: async function () {
+            const response = await this.startImport(this.importOptions)
+            if (response.error) {
+                this.$toast.add({ severity: 'error', summary: this.$tm('common.error'), detail: response.response?.data?.detail || this.securitiesI18n.failedToTriggerImport })
+                return
+            }
+            this.setValue('importStatus.progress', { percentage: 0, message: response.data.message, status: response.data.status, result: null })
+            this.startProgressPolling()
+            this.showImportDialog = false
+            this.showImportProgress = true
+        },
+
+        /**
+         * Polls import progress for every 2 seconds.
+         */
+        startProgressPolling: function () {
+            if (!this.importStatus.taskId) {
+                this.showImportProgress = false
+                return
+            }
+
+            this.progressTimer = setInterval(async () => {
+                const response = await this.getImportStatus(this.importStatus.taskId)
+                if (response.error) {
+                    console.error(response.data)
+                    return
+                }
+
+                if (['SUCCESS', 'FAILURE'].includes(response.data.status)) {
+                    clearInterval(this.progressTimer)
+                    return
+                }
+            }, 2000)
         }
     },
     mounted() {
@@ -404,6 +459,19 @@ export default {
 
             p {
                 @apply qp-mt-4 qp-text-primary-600;
+            }
+        }
+    }
+
+    /* Import Status */
+    .import-status-card {
+        @apply qp-bg-white qp-p-3 qp-ring-1 qp-ring-primary-200 qp-rounded-md qp-flex qp-flex-col qp-space-y-2;
+
+        .status-item {
+            @apply qp-flex qp-items-center qp-space-x-2;
+
+            label {
+                @apply qp-font-semibold;
             }
         }
     }
