@@ -162,6 +162,7 @@ export default {
                     ]
                 }
             ],
+            dynamicPageInfo: { title: null, breadcrumb: null, routePath: null },
             searchQuery: null,
             showUserMenu: false,
             isMobile: window.innerWidth < 768,
@@ -173,23 +174,57 @@ export default {
     },
     computed: {
         ...mapState(useAuthStore, ['userProfile']),
-        breadcrumbs() {
-            const path = this.$route.path
-            const segments = path.split('/').filter(Boolean)
+        routeInfo() {
+            const fullPath = this.$route.path
+            const segments = fullPath.split('/').filter(Boolean)
             const crumbs = []
+            let pageTitle = 'Dashboard'
 
-            let currentPath = ''
+            // Process each segment to build breadcrumbs
             for (let i = 1; i < segments.length; i++) {
-                currentPath += '/' + segments[i]
-                const title = this.getPageTitle(currentPath) || this.formatTitle(segments[i])
-                crumbs.push({ path: currentPath, title })
+                const currentPath = '/' + segments.slice(0, i + 1).join('/')
+                const isCurrentPage = currentPath === fullPath
+
+                let title = null
+
+                // Check for dynamic info from page component
+                if (isCurrentPage && this.dynamicPageInfo.breadcrumb && this.dynamicPageInfo.routePath === fullPath) {
+                    title = this.dynamicPageInfo.breadcrumb
+                } else {
+                    // Use router.resolve to get route title
+                    const resolved = this.$router.resolve(currentPath)
+                    if (resolved.matched.length > 0) {
+                        const route = resolved.matched[resolved.matched.length - 1]
+                        if (route.meta?.title) {
+                            const parts = route.meta.title.split(' | ')
+                            title = parts.length > 1 ? parts[1] : parts[0]
+                        }
+                    }
+                }
+
+                // Add to breadcrumbs
+                crumbs.push({ path: currentPath, title: title || segments[i], isClickable: i < segments.length - 1 })
+
+                // Set page title if this is the current page
+                if (isCurrentPage) {
+                    // Check for dynamic title first
+                    if (this.dynamicPageInfo.title && this.dynamicPageInfo.routePath === fullPath) {
+                        pageTitle = this.dynamicPageInfo.title
+                    } else if (title) {
+                        pageTitle = title
+                    }
+                }
             }
 
-            return crumbs
+            return { breadcrumbs: crumbs, pageTitle: pageTitle }
+        },
+
+        breadcrumbs() {
+            return this.routeInfo.breadcrumbs
         },
 
         currentPageTitle() {
-            return this.getPageTitle(this.$route.path) || 'Dashboard'
+            return this.routeInfo.pageTitle
         },
 
         userInitials() {
@@ -334,7 +369,7 @@ export default {
                 }
 
                 .brand-subtitle {
-                    @apply qp-text-xs qp-text-secondary-600 qp-font-semibold qp-tracking-wide;
+                    @apply qp-text-xs qp-text-secondary-600 qp-font-semibold qp-tracking-wide qp-uppercase;
                 }
             }
         }
