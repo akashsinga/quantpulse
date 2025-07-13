@@ -222,6 +222,11 @@ export const en = {
                 forceRefresh: 'Force refresh existing securities',
                 startImport: 'Start Import'
             }
+        },
+        securityDetails: {
+            messages: {
+                errorWhileFetchingSecurityDetails: 'Error while fetching security details. Please try again later.'
+            }
         }
     },
     components: {}

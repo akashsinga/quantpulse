@@ -100,7 +100,7 @@
                             <Badge v-if="!(slotProps.data.segment === slotProps.data.security_type)" severity="secondary" :value="slotProps.data.security_type" size="small"></Badge>
                         </div>
                         <div v-else-if="column.id === 'actions'" class="qp-flex qp-items-center qp-space-x-1.5">
-                            <Button icon="ph ph-eye" size="small" severity="primary" v-tooltip="securitiesI18n.tooltips.viewSecurity"></Button>
+                            <Button icon="ph ph-eye" size="small" severity="primary" v-tooltip="securitiesI18n.tooltips.viewSecurity" @click="viewSecurity(slotProps.data)"></Button>
                             <Button icon="ph ph-pencil" size="small" severity="info" v-tooltip="securitiesI18n.tooltips.editSecurity"></Button>
                             <Button :icon="slotProps.data.is_active ? 'ph ph-pause' : 'ph ph-play'" size="small" :severity="slotProps.data.is_active ? 'danger' : 'success'" v-tooltip="slotProps.data.is_active ? $tm('common.deactivate') : $tm('common.activate')"></Button>
                         </div>
@@ -317,6 +317,14 @@ export default {
                     return
                 }
             }, 2000)
+        },
+
+        /**
+         * Navigates to security details page.
+         * @param {Object} security
+         */
+        viewSecurity: function (security) {
+            this.$router.push({ name: 'adminSecurityDetails', params: { id: security.id }, meta: { breadcrumb: security.symbol } })
         }
     },
     mounted() {

@@ -80,6 +80,19 @@ const actions = {
     },
 
     /**
+     * Fetch security based on id.
+     * @param {String} id
+     */
+    fetchSecurity: async function (id) {
+        try {
+            const response = await this.$http.get(`/api/v1/securities/${id}`)
+            return { error: false, data: response.data.data }
+        } catch (error) {
+            return { error: true, data: error }
+        }
+    },
+
+    /**
      * Fetches the securities stats.
      * @returns {Object} Generic object
      */

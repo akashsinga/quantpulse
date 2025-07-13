@@ -95,7 +95,7 @@
 
             <!-- Page Content -->
             <main class="page-content">
-                <router-view></router-view>
+                <router-view @page-info-update="onPageInfoUpdate"></router-view>
             </main>
         </div>
         <Toast></Toast>
@@ -236,19 +236,10 @@ export default {
         ...mapActions(useAuthStore, ['logout']),
 
         /**
-         * Identifies page title from path.
-         * @param {String} path
-         * @returns {String}
-         */
-        getPageTitle: function (path) {
-            for (const group of this.navigationItems) {
-                for (const item of group.items) {
-                    if (item.path === path) {
-                        return item.title
-                    }
-                }
-            }
-            return null
+         * Clear dynamic page info when route changes
+        */
+        clearDynamicPageInfo() {
+            this.dynamicPageInfo = { title: null, breadcrumb: null, routePath: null }
         },
 
         /**
@@ -299,6 +290,14 @@ export default {
             if (this.isMobile) {
                 this.isSidebarCollapsed = true
             }
+        },
+
+        /**
+         * Handle page info updates from child components
+         * @param {Object} data - { title, breadcrumb }
+        */
+        onPageInfoUpdate: function (data) {
+            this.dynamicPageInfo = { ...data, routePath: this.$route.path }
         },
 
         /**
