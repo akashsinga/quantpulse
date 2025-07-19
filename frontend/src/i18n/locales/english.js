@@ -20,6 +20,8 @@ export const en = {
         days: 'Days',
         futures: 'Futures',
         options: 'Options',
+        copied: 'Copied !',
+        textCopiedToClipboard: 'Text copied to clipboard',
         jobStatus: {
             PENDING: "PENDING",
             RECEIVED: "RECEIVED",
@@ -264,10 +266,46 @@ export const en = {
                 exportData: 'Export Data',
                 archiveSecurity: 'Archive Security'
             },
+            tabs: {
+                coreInformation: 'Core Information',
+                tradingConfiguration: 'Trading Configuration',
+                derivativesInformation: 'Derivatives Information',
+                dataManagement: 'Data Management',
+                marketData: 'Market Data & Analytics',
+                auditHistory: 'Audit & History'
+            },
             messages: {
                 errorWhileFetchingSecurityDetails: 'Error while fetching security details. Please try again later.'
             }
         }
     },
-    components: {}
+    components: {
+        securitiesCoreInformation: {
+            primaryDetails: 'Primary Details',
+            exchangeInformation: 'Exchange Information',
+            classification: 'Classification & Categorization',
+            systemInformation: 'System Information',
+            syncNow: 'Sync Now',
+            labels: {
+                securitySymbol: 'Security Symbol',
+                fullName: 'Full Name',
+                isinCode: 'ISIN Code',
+                externalID: 'External ID',
+                internalID: 'Internal ID',
+                exchange: 'Exchange',
+                country: 'Country',
+                currency: 'Currency',
+                tradingHours: 'Trading Hours',
+                timezone: 'Timezone',
+                securityType: 'Security Type',
+                marketSegment: 'Market Segment',
+                sector: 'Sector',
+                industry: 'Industry',
+                createdAt: 'Created At',
+                lastUpdated: 'Last Updated',
+                dataSource: 'Data Source',
+                lastSync: 'Last Sync'
+            }
+        }
+    }
 }

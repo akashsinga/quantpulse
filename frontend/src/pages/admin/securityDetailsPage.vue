@@ -104,6 +104,25 @@
                     </div>
                 </div>
             </div>
+
+            <!-- Tabbed Content -->
+            <div class="admin-tabs-container">
+                <Tabs v-model:value="selectedTab" scrollable>
+                    <TabList>
+                        <Tab v-for="(tab, index) in securityTabsToDisplay" :key="index" :value="tab.id">
+                            <div class="tab-header">
+                                <i :class="tab.icon"></i>
+                                <span>{{ tab.title }}</span>
+                            </div>
+                        </Tab>
+                    </TabList>
+                </Tabs>
+                <TabPanels>
+                    <TabPanel v-for="(tab, index) in securityTabsToDisplay" :key="index" :value="tab.id">
+                        <component :is="tab.component" :key="tab.id" :security="security"></component>
+                    </TabPanel>
+                </TabPanels>
+            </div>
         </div>
     </div>
 </template>
@@ -114,7 +133,7 @@ import { mapActions } from 'pinia';
 import { useSecuritiesStore } from '@/stores/securities';
 export default {
     components: {
-        securityOverview: defineAsyncComponent(() => import('@/components/securities/securityOverview.vue'))
+        coreInformation: defineAsyncComponent(() => import('@/components/securities/securitiesCoreInformation.vue'))
     },
     data() {
         return {
@@ -122,6 +141,15 @@ export default {
             securitiesI18n: this.$tm('pages.securityDetails'),
             selectedTab: 0,
             security: null,
+            securityTabs: [
+                { id: 'coreInformation', icon: 'ph ph-info', component: 'coreInformation' },
+                { id: 'tradingConfiguration', icon: 'ph ph-chart-line', component: 'tradingConfiguration' },
+                { id: 'derivativesInformation', icon: 'ph ph-lightning', component: 'derivativesInformation' },
+                { id: 'dataManagement', icon: 'ph ph-database', component: 'dataManagement' },
+                { id: 'marketData', icon: 'ph ph-chart-bar', component: 'marketData' },
+                { id: 'auditHistory', icon: 'ph ph-clock-counter-clockwise', component: 'auditHistory' },
+            ],
+            selectedTab: 'coreInformation',
             splitButtonActions: [
                 { id: 'editDetails', icon: 'ph ph-pencil', command: () => this.editSecurity() },
                 { id: 'viewMarketData', icon: 'ph ph-chart-line', command: () => this.viewMarketData() },
@@ -153,8 +181,14 @@ export default {
             const tickSize = parseFloat(this.security.tick_size) || 0.01
             return this.getFormattedNumber(lotSize * tickSize)
         },
+        securityTabsToDisplay() {
+            return this.showDerivativesTab ? this.securityTabs : this.$lodash.filter(this.securityTabs, (tab) => tab.id !== 'derivativesInformation')
+        },
         securityTypeSeverity() {
             return { 'EQUITY': 'success', 'INDEX': 'info', 'FUTSTK': 'warning', 'FUTIDX': 'warning', 'OPTSTK': 'danger', 'OPTIDX': 'danger' }[this.security.security_type] || 'info'
+        },
+        showDerivativesTab() {
+            return this.security && (this.isDerivative || this.security.has_futures || this.security.has_options || this.security.is_derivatives_eligible);
         }
     },
     methods: {
@@ -164,6 +198,7 @@ export default {
          * Initializes and fetches data needed for the page.
          */
         init: async function () {
+            this.securityTabs = this.$lodash.map(this.securityTabs, (tab) => ({ ...tab, title: this.securitiesI18n.tabs[tab.id] }))
             this.splitButtonActions = this.$lodash.map(this.splitButtonActions, (action) => ({ ...action, label: this.securitiesI18n.buttonActions[action.id] }))
             await this.getSecurityDetails()
         },
@@ -270,17 +305,17 @@ export default {
                     @apply qp-space-y-2;
 
                     .security-name {
-                        @apply qp-text-lg qp-font-semibold qp-text-primary-700 qp-leading-tight;
+                        @apply qp-text-xl qp-font-semibold qp-text-primary-700 qp-leading-tight;
                     }
 
                     .meta-info {
                         @apply qp-flex qp-flex-wrap qp-gap-4;
 
                         .meta-item {
-                            @apply qp-flex qp-items-center qp-gap-2 qp-text-sm qp-text-primary-600;
+                            @apply qp-flex qp-items-center qp-gap-2 qp-text-base qp-text-primary-600;
 
                             i {
-                                @apply qp-text-primary-400;
+                                @apply qp-text-primary-400 qp-text-lg;
                             }
 
                             strong {
@@ -361,6 +396,18 @@ export default {
                 .metric-icon {
                     @apply qp-bg-secondary-100 qp-text-secondary-600 qp-ring-secondary-200;
                 }
+            }
+        }
+    }
+
+    .admin-tabs-container {
+        @apply qp-bg-white qp-rounded-md qp-border qp-border-primary-200 qp-mt-3 qp-px-1;
+
+        .tab-header {
+            @apply qp-flex qp-items-center qp-gap-2;
+
+            i {
+                @apply qp-text-primary-500;
             }
         }
     }
