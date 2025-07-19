@@ -1,5 +1,8 @@
 export const en = {
     common: {
+        available: 'available',
+        edit: 'Edit',
+        viewCharts: 'View Charts',
         search: 'Search ...',
         refresh: 'Refresh',
         clear: 'Clear',
@@ -14,6 +17,9 @@ export const en = {
         inactive: 'Inactive',
         status: 'Status',
         step: 'Step',
+        days: 'Days',
+        futures: 'Futures',
+        options: 'Options',
         jobStatus: {
             PENDING: "PENDING",
             RECEIVED: "RECEIVED",
@@ -224,6 +230,40 @@ export const en = {
             }
         },
         securityDetails: {
+            securityNotFound: 'Security Not Found',
+            requestedSecurityNotFound: 'The requested security could not be found.',
+            backToSecurities: 'Back to Securities',
+            noDerivativesAvailable: 'No Derivatives Available',
+            metrics: {
+                tradingStatus: 'Trading Status',
+                activeInMarket: 'Active in market',
+                currentlyInactive: 'Currently inactive',
+                tradable: 'Tradable',
+                nonTradeable: 'Non-Tradeable',
+                derivatives: 'Derivatives',
+                eligible: 'Eligible',
+                notEligible: 'Not Eligible',
+                minTradeValue: 'Min Trade Value',
+                lotSizexTickSize: 'Lot Size x Tick Size',
+                classification: 'Classification',
+                industryNotClassified: 'Industry not classified'
+            },
+            labels: {
+                symbol: 'Symbol',
+                isin: 'ISIN',
+                externalID: 'External ID',
+                sector: 'Sector',
+                added: 'Added',
+                lotSize: 'Lot Size',
+                tickSize: 'Tick Size',
+                daysToExpiry: 'Days to Expiry'
+            },
+            buttonActions: {
+                editDetails: 'Edit Details',
+                viewMarketData: 'View Market Data',
+                exportData: 'Export Data',
+                archiveSecurity: 'Archive Security'
+            },
             messages: {
                 errorWhileFetchingSecurityDetails: 'Error while fetching security details. Please try again later.'
             }
