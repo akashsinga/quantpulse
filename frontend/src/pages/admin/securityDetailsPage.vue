@@ -107,7 +107,7 @@
 
             <!-- Tabbed Content -->
             <div class="admin-tabs-container">
-                <Tabs v-model:value="selectedTab" scrollable>
+                <Tabs :value="selectedTab" scrollable>
                     <TabList>
                         <Tab v-for="(tab, index) in securityTabsToDisplay" :key="index" :value="tab.id">
                             <div class="tab-header">
@@ -116,12 +116,12 @@
                             </div>
                         </Tab>
                     </TabList>
+                    <TabPanels>
+                        <TabPanel v-for="(tab, index) in securityTabsToDisplay" :key="index" :value="tab.id">
+                            <component :is="tab.component" :step="tab.id" :security="security"></component>
+                        </TabPanel>
+                    </TabPanels>
                 </Tabs>
-                <TabPanels>
-                    <TabPanel v-for="(tab, index) in securityTabsToDisplay" :key="index" :value="tab.id">
-                        <component :is="tab.component" :key="tab.id" :security="security"></component>
-                    </TabPanel>
-                </TabPanels>
             </div>
         </div>
     </div>
@@ -133,7 +133,8 @@ import { mapActions } from 'pinia';
 import { useSecuritiesStore } from '@/stores/securities';
 export default {
     components: {
-        coreInformation: defineAsyncComponent(() => import('@/components/securities/securitiesCoreInformation.vue'))
+        coreInformation: defineAsyncComponent(() => import('@/components/securities/securitiesCoreInformation.vue')),
+        tradingConfiguration: defineAsyncComponent(() => import('@/components/securities/securitiesTradingConfiguration.vue'))
     },
     data() {
         return {

@@ -1,6 +1,7 @@
 export const en = {
     common: {
         available: 'available',
+        unavailable: 'unavailable',
         edit: 'Edit',
         viewCharts: 'View Charts',
         search: 'Search ...',
@@ -21,6 +22,10 @@ export const en = {
         futures: 'Futures',
         options: 'Options',
         copied: 'Copied !',
+        yes: 'Yes',
+        no: 'No',
+        allowed: 'Allowed',
+        restricted: 'Restricted',
         textCopiedToClipboard: 'Text copied to clipboard',
         jobStatus: {
             PENDING: "PENDING",
@@ -305,6 +310,27 @@ export const en = {
                 lastUpdated: 'Last Updated',
                 dataSource: 'Data Source',
                 lastSync: 'Last Sync'
+            }
+        },
+        securitiesTradingConfiguration: {
+            tradingParameters: 'Trading Parameters',
+            tradingStatusPermissions: 'Trading Status & Permissions',
+            marketAvailability: 'Market Availability',
+            shares: 'shares/contracts',
+            minimumQuantity: 'Minimum quantity for trading',
+            minimumPriceMovement: 'minimum price movement',
+            minimumInvestment: 'minimum investment',
+            smallestPriceIncrementAllowed: 'Smallest price increment allowed',
+            lotSizexTickSize: 'Lot Size x Current Tick Size',
+            labels: {
+                lotSize: 'Lot Size',
+                tickSize: 'Tick Size',
+                minTradeValue: 'Minimum Trade Value',
+                activeStatus: 'Active Status',
+                tradingPermission: 'Trading Permission',
+                derivativesEligible: 'Derivatives Eligible',
+                futuresMarket: 'Futures Market',
+                optionsMarket: 'Options Market'
             }
         }
     }

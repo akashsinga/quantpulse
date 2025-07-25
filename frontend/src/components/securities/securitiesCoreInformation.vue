@@ -150,7 +150,7 @@
 export default {
     props: {
         security: { type: Object, required: true },
-        key: { type: String, required: true }
+        step: { type: String, required: true }
     },
     data() {
         return {
@@ -198,47 +198,3 @@ export default {
     }
 }
 </script>
-
-<style lang="postcss" scoped>
-.admin-grid {
-    @apply qp-grid qp-grid-cols-1 lg:qp-grid-cols-2 qp-gap-3;
-
-    .admin-card {
-        @apply qp-border qp-border-primary-200 qp-rounded-md;
-
-        .card-title {
-            @apply qp-flex qp-items-center qp-gap-2 qp-bg-primary-100 qp-text-base qp-font-medium qp-text-primary-900 qp-px-2 qp-py-1 qp-border-b qp-border-primary-200;
-
-            i {
-                @apply qp-text-primary-500 qp-text-2xl;
-            }
-        }
-
-        .card-content {
-            @apply qp-px-3;
-
-            .detail-table {
-                .detail-row {
-                    @apply qp-flex qp-min-h-14 qp-justify-between qp-text-base qp-items-center qp-py-2 qp-border-b qp-border-primary-100 last:qp-border-b-0;
-
-                    .label {
-                        @apply qp-font-medium qp-text-primary-600 qp-min-w-0;
-                    }
-
-                    .value {
-                        @apply qp-text-primary-900 qp-font-medium qp-text-right qp-flex qp-items-center qp-gap-2 qp-min-w-0;
-
-                        code {
-                            @apply qp-px-2 qp-py-1 qp-bg-primary-100 qp-text-primary-800 qp-rounded qp-font-mono;
-                        }
-
-                        .not-available {
-                            @apply qp-text-primary-400 qp-italic;
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
-</style>
