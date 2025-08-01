@@ -134,7 +134,8 @@ import { useSecuritiesStore } from '@/stores/securities';
 export default {
     components: {
         coreInformation: defineAsyncComponent(() => import('@/components/securities/securitiesCoreInformation.vue')),
-        tradingConfiguration: defineAsyncComponent(() => import('@/components/securities/securitiesTradingConfiguration.vue'))
+        tradingConfiguration: defineAsyncComponent(() => import('@/components/securities/securitiesTradingConfiguration.vue')),
+        derivativesInformation: defineAsyncComponent(() => import('@/components/securities/securitiesDerivativesInformation.vue'))
     },
     data() {
         return {

@@ -2,6 +2,7 @@ export const en = {
     common: {
         available: 'available',
         unavailable: 'unavailable',
+        availableForTrading: 'Available For Trading',
         edit: 'Edit',
         viewCharts: 'View Charts',
         search: 'Search ...',
@@ -331,6 +332,27 @@ export const en = {
                 derivativesEligible: 'Derivatives Eligible',
                 futuresMarket: 'Futures Market',
                 optionsMarket: 'Options Market'
+            }
+        },
+        securitiesDerivativesInformation: {
+            contractSpecifications: 'Contract Specifications',
+            availableDerivativeInstruments: 'Available Derivative Instruments',
+            contractManagement: 'Contract Management',
+            labels: {
+                contractType: 'Contract Type',
+                underlyingAsset: 'Underlying Asset',
+                expirationDate: 'Expiration Date',
+                contractMonth: 'Contract Month',
+                settlementType: 'Settlement Type',
+                contractSize: 'Contract Size',
+                futuresContracts: 'Futures Contracts',
+                optionsContracts: 'Options Contracts'
+            },
+            contractActions: {
+                viewAllContracts: 'View All Contracts',
+                viewAllContractsSubtitle: 'View existing derivative contracts',
+                expiryManagement: 'Expiry Management',
+                expiryManagementSubtitle: 'Manage contract expiries and rollovers'
             }
         }
     }
