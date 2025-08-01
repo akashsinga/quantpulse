@@ -146,10 +146,10 @@ export default {
             securityTabs: [
                 { id: 'coreInformation', icon: 'ph ph-info', component: 'coreInformation' },
                 { id: 'tradingConfiguration', icon: 'ph ph-chart-line', component: 'tradingConfiguration' },
-                { id: 'derivativesInformation', icon: 'ph ph-lightning', component: 'derivativesInformation' },
-                { id: 'dataManagement', icon: 'ph ph-database', component: 'dataManagement' },
-                { id: 'marketData', icon: 'ph ph-chart-bar', component: 'marketData' },
-                { id: 'auditHistory', icon: 'ph ph-clock-counter-clockwise', component: 'auditHistory' },
+                // { id: 'derivativesInformation', icon: 'ph ph-lightning', component: 'derivativesInformation' },
+                // { id: 'dataManagement', icon: 'ph ph-database', component: 'dataManagement' },
+                // { id: 'marketData', icon: 'ph ph-chart-bar', component: 'marketData' },
+                // { id: 'auditHistory', icon: 'ph ph-clock-counter-clockwise', component: 'auditHistory' },
             ],
             selectedTab: 'coreInformation',
             splitButtonActions: [
