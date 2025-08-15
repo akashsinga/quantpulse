@@ -99,6 +99,7 @@
             </main>
         </div>
         <Toast></Toast>
+        <ConfirmDialog></ConfirmDialog>
     </div>
 </template>
 <script>

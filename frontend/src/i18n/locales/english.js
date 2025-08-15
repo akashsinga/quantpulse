@@ -29,17 +29,17 @@ export const en = {
         restricted: 'Restricted',
         textCopiedToClipboard: 'Text copied to clipboard',
         jobStatus: {
-            PENDING: "PENDING",
-            RECEIVED: "RECEIVED",
-            STARTED: "STARTED",
-            PROGRESS: "PROGRESS",
-            PROCESSING: "PROCESSING",
-            PARTIAL_SUCCESS: "PARTIAL_SUCCESS",
-            SUCCESS: "SUCCESS",
-            FAILURE: "FAILURE",
-            RETRY: "RETRY",
-            REVOKED: "REVOKED",
-            CANCELLED: "CANCELLED"
+            PENDING: "Pending",
+            RECEIVED: "Received",
+            STARTED: "Running",
+            PROGRESS: "In Progress",
+            PROCESSING: "In Progress",
+            PARTIAL_SUCCESS: "Partially Successful",
+            SUCCESS: "Completed",
+            FAILURE: "Failed",
+            RETRY: "Retry",
+            REVOKED: "Revoked",
+            CANCELLED: "Cancelled"
         }
     },
     pages: {
@@ -282,6 +282,92 @@ export const en = {
             },
             messages: {
                 errorWhileFetchingSecurityDetails: 'Error while fetching security details. Please try again later.'
+            }
+        },
+        tasks: {
+            title: 'Background Tasks',
+            subtitle: 'Monitor and manage system background tasks and operations',
+            searchPlaceholder: 'Search tasks by name or description...',
+            noTasksFound: 'No Tasks Found',
+            tryAdjustingFilters: 'Try adjusting your search criteria or filters',
+            taskDetails: 'Task Details',
+            taskStatistics: 'Task Statistics',
+            viewStats: 'View Statistics',
+            cleanup: 'Cleanup',
+            tooltips: {
+                viewDetails: 'View Task Details',
+                retryTask: 'Retry Failed Task',
+                cancelTask: 'Cancel Running Task',
+                deleteTask: 'Delete Task Record'
+            },
+            filters: {
+                status: 'Status',
+                taskType: 'Task Type',
+                dateRange: 'Created After',
+                sortBy: 'Sort By',
+                placeholders: {
+                    status: 'All Statuses',
+                    taskType: 'All Types',
+                    createdAfter: 'Select date...',
+                    createdDate: 'Created Date'
+                }
+            },
+            actions: {
+                retry: 'Retry Task',
+                cancel: 'Cancel Task',
+                delete: 'Delete Task',
+                bulkAction: 'Bulk Action',
+                exportLogs: 'Export Logs',
+                cleanup: 'Cleanup Old Tasks'
+            },
+            columns: {
+                title: 'Task',
+                status: 'Status',
+                task_type: 'Type',
+                created_at: 'Created',
+                execution_time: 'Duration',
+                actions: 'Actions'
+            },
+            taskTypes: {
+                SECURITIES_IMPORT: 'Securities Import',
+                DATA_ENRICHMENT: 'Data Enrichment',
+                SYSTEM_MAINTENANCE: 'System Maintenance',
+                CSV_PROCESSING: 'CSV Processing',
+                API_ENRICHMENT: 'API Enrichment'
+            },
+            sortOptions: {
+                created_at: 'Created Date',
+                status: 'Status',
+                task_type: 'Task Type',
+                progress_percentage: 'Progress'
+            },
+            quickStats: {
+                total: 'Total Tasks',
+                running: 'Running',
+                success: 'Successful',
+                failed: 'Failed'
+            },
+            confirmations: {
+                retry: 'Are you sure you want to retry this task?',
+                cancel: 'Are you sure you want to cancel this running task?',
+                delete: 'Are you sure you want to delete this task? This action cannot be undone.',
+                bulkDelete: 'Are you sure you want to delete {count} selected tasks?',
+                cleanup: 'This will remove tasks older than {days} days. Continue?'
+            },
+            messages: {
+                taskRetried: 'Task retry initiated successfully',
+                taskCancelled: 'Task cancelled successfully',
+                taskDeleted: 'Task deleted successfully',
+                bulkActionCompleted: 'Bulk action completed successfully',
+                logsExported: 'Task logs exported successfully',
+                cleanupCompleted: 'Task cleanup completed',
+                errorRetryingTask: 'Failed to retry task',
+                errorCancellingTask: 'Failed to cancel task',
+                errorDeletingTask: 'Failed to delete task',
+                errorFetchingTasks: 'Failed to fetch tasks data',
+                errorFetchingDetails: 'Failed to fetch task details',
+                errorFetchingStats: 'Failed to fetch task statistics',
+                refreshSuccessful: 'Tasks data refreshed successfully'
             }
         }
     },

@@ -31,7 +31,8 @@ const router = createRouter({
         { path: '', name: 'adminRedirect', redirect: '/admin/dashboard' },
         { path: 'dashboard', name: 'adminDashboard', component: () => import('@/pages/admin/dashboardPage.vue'), meta: { title: 'QuantPulse | Dashboard' } },
         { path: 'securities', name: 'adminSecurities', component: () => import('@/pages/admin/securitiesPage.vue'), meta: { title: 'QuantPulse | Securities' } },
-        { path: 'securities/:id', name: 'adminSecurityDetails', component: () => import('@/pages/admin/securityDetailsPage.vue'), meta: { title: 'QuantPulse | Security Details' } }
+        { path: 'securities/:id', name: 'adminSecurityDetails', component: () => import('@/pages/admin/securityDetailsPage.vue'), meta: { title: 'QuantPulse | Security Details' } },
+        { path: 'tasks', name: 'adminTasks', component: () => import('@/pages/admin/taskspage.vue'), meta: { title: 'QuantPulse | Background Tasks' } }
       ],
       meta: { requiresAuth: true, requiresSuperuser: true, title: 'QuantPulse | Admin' }
     },
