@@ -114,6 +114,8 @@
 </template>
 
 <script>
+import { mapActions } from 'pinia';
+import { useGlobalStore } from '@/stores/global'
 export default {
     props: {
         security: { type: Object, required: true },
@@ -139,25 +141,7 @@ export default {
         }
     },
     methods: {
-        /**
-         * Formats date to readable format
-         * @param {String} date
-         * @returns {String}
-         */
-        getFormattedDate: function (date) {
-            if (!date) return 'N/A'
-            return new Date(date).toLocaleDateString('en-IN', { year: 'numeric', month: 'short', day: 'numeric' })
-        },
-
-        /**
-         * Formats number to readable format.
-         * @param {Number} number
-         * @returns {*}
-         */
-        getFormattedNumber: function (number) {
-            if (!number && number !== 0) return 'N/A';
-            return new Intl.NumberFormat('en-IN').format(number)
-        }
+        ...mapActions(useGlobalStore, ['getFormattedNumber', 'getFormattedDate'])
     }
 }
 </script>

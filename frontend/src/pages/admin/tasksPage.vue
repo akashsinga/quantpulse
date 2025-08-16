@@ -63,7 +63,19 @@
 
         <!-- Tasks Table -->
         <div class="table-card">
-            <DataTable class="tasks-table" :value="tasks" :loading="isLoading" :totalRecords="totalRecords" :rows="pagination.limit" :first="pagination.skip" paginator lazy showGridlines sortMode="single" :rowsPerPageOptions="[25, 50, 100]" paginatorTemplate="PrevPageLink CurrentPageReport NextPageLink RowsPerPageDropdown" currentPageReportTemplate="{first} to {last} of {totalRecords}" dataKey="id" :rowHover="true" @page="onPageChange" @sort="onSort" :selection="selectedTasks" @selection-change="onSelectionChange">
+            <!-- Bulk Actions Toolbar -->
+            <!-- <div v-if="selectedTasks.length > 0" class="bulk-actions-toolbar">
+                <div class="bulk-info">
+                    <span>{{ selectedTasks.length }} tasks selected</span>
+                </div>
+                <div class="bulk-actions">
+                    <Button icon="ph ph-arrow-clockwise" label="Retry Selected" size="small" severity="info" @click="bulkRetryTasks"></Button>
+                    <Button icon="ph ph-pause" label="Cancel Selected" size="small" severity="warn" @click="bulkCancelTasks"></Button>
+                    <Button icon="ph ph-trash" label="Delete Selected" size="small" severity="danger" @click="bulkDeleteTasks"></Button>
+                </div>
+            </div> -->
+
+            <DataTable class="tasks-table" v-model:selection="selectedTasks" :value="tasks" :loading="isLoading" :totalRecords="totalRecords" :rows="pagination.limit" :first="pagination.skip" paginator lazy showGridlines sortMode="single" :rowsPerPageOptions="[25, 50, 100]" paginatorTemplate="PrevPageLink CurrentPageReport NextPageLink RowsPerPageDropdown" currentPageReportTemplate="{first} to {last} of {totalRecords}" dataKey="id" :rowHover="true" @page="onPageChange" @sort="onSort">
                 <template #loading>
                     <div class="loading-state">
                         <ProgressSpinner size="50" stroke-width="2"></ProgressSpinner>
@@ -97,7 +109,7 @@
                             <small class="time-ago">({{ getElapsedTime(slotProps.data.created_at) }})</small>
                         </div>
                         <div v-else-if="column.id === 'execution_time'" class="duration-cell">
-                            {{ formatDuration(slotProps.data.execution_time_seconds) }}
+                            {{ getFormattedDuration(slotProps.data.execution_time_seconds) }}
                         </div>
                         <div v-else-if="column.id === 'actions'" class="actions-cell">
                             <Button icon="ph ph-eye" size="small" severity="primary" v-tooltip="tasksI18n.tooltips.viewDetails" @click="viewTaskDetails(slotProps.data)"></Button>
@@ -112,6 +124,15 @@
                 </Column>
             </DataTable>
         </div>
+
+        <Dialog class="task-details-dialog" v-model:visible="showDetailsDialog" modal :style="{ width: '90vw', maxWidth: '1200px' }">
+            <template #header>
+                <div class="dialog-header">
+                    <h3>{{ tasksI18n.taskDetails }}</h3>
+                </div>
+            </template>
+            <TaskDetailsComponent v-if="selectedTask" :task="selectedTask" @refresh="refreshTaskDetails" @retry="retryTask" @cancel="cancelTask" @close="showDetailsDialog = false"></TaskDetailsComponent>
+        </Dialog>
     </div>
 </template>
 <script>
@@ -119,7 +140,7 @@ import { mapState, mapActions } from 'pinia'
 import { debounce } from 'lodash'
 
 import { useTasksStore } from '@/stores/tasks'
-
+import { useGlobalStore } from '@/stores/global'
 export default {
     name: 'BackgroundTasks',
     data() {
@@ -170,6 +191,7 @@ export default {
     },
     methods: {
         ...mapActions(useTasksStore, ['fetchTasks', 'fetchTaskDetails', 'retryTaskAction', 'cancelTaskAction', 'deleteTaskAction', 'clearFilters', 'setPagination', 'setSort', 'setValue']),
+        ...mapActions(useGlobalStore, ['getFormattedDateTime', 'getFormattedNumber', 'getElapsedTime', 'getFormattedDuration']),
 
         /**
          * Apply filters and refresh data.
@@ -216,14 +238,6 @@ export default {
         }, 500),
 
         /**
-         * Format number utility
-         */
-        getFormattedNumber: function (value) {
-            if (!value && value !== 0) return '0'
-            return new Intl.NumberFormat().format(value)
-        },
-
-        /**
          * Handle page change
          */
         onPageChange: async function (event) {
@@ -237,52 +251,6 @@ export default {
         onSort: async function (event) {
             this.setSort(event.sortField, event.sortOrder)
             await this.getTasks()
-        },
-
-        /**
-         * Format date to readable format
-         */
-        getFormattedDate: function (date) {
-            if (!date) return 'N/A'
-            return new Date(date).toLocaleDateString('en-IN', {
-                year: 'numeric', month: 'short', day: 'numeric',
-                hour: '2-digit', minute: '2-digit'
-            })
-        },
-
-        /**
-         * Get elapsed time display
-         */
-        getElapsedTime: function (date) {
-            if (!date) return ''
-            const now = new Date()
-            const past = new Date(date)
-            const diffInHours = Math.floor((now - past) / (1000 * 60 * 60))
-
-            if (diffInHours < 1) return 'Just now'
-            if (diffInHours < 24) return `${diffInHours}h ago`
-            return `${Math.floor(diffInHours / 24)}d ago`
-        },
-
-
-        /**
-         * Format duration from seconds
-         */
-        formatDuration: function (seconds) {
-            if (!seconds) return 'N/A'
-            if (seconds < 60) return `${seconds}s`
-            if (seconds < 3600) return `${Math.floor(seconds / 60)}m ${seconds % 60}s`
-            const hours = Math.floor(seconds / 3600)
-            const minutes = Math.floor((seconds % 3600) / 60)
-            return `${hours}h ${minutes}m`
-        },
-
-
-        /**
-        * Handle task selection changes
-        */
-        onSelectionChange: function (event) {
-            this.selectedTasks = event.value
         },
 
         /**
@@ -558,6 +526,30 @@ export default {
             p {
                 @apply qp-mt-4 qp-text-primary-600;
             }
+        }
+    }
+
+    .bulk-actions-toolbar {
+        @apply qp-flex qp-justify-between qp-items-center qp-p-3 qp-bg-blue-50 qp-border-t qp-border-blue-200;
+
+        .bulk-info {
+            @apply qp-text-sm qp-font-medium qp-text-blue-700;
+        }
+
+        .bulk-actions {
+            @apply qp-flex qp-gap-2;
+        }
+    }
+}
+
+/* Dialog Styles */
+.task-details-dialog,
+.stats-dialog {
+    .dialog-header {
+        @apply qp-flex qp-items-center qp-justify-between qp-w-full;
+
+        h3 {
+            @apply qp-text-lg qp-font-semibold qp-text-primary-900;
         }
     }
 }

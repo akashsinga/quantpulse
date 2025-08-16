@@ -131,6 +131,7 @@ import { defineAsyncComponent } from 'vue';
 import { mapActions } from 'pinia';
 
 import { useSecuritiesStore } from '@/stores/securities';
+import { useGlobalStore } from '@/stores/global';
 export default {
     components: {
         coreInformation: defineAsyncComponent(() => import('@/components/securities/securitiesCoreInformation.vue')),
@@ -195,6 +196,7 @@ export default {
     },
     methods: {
         ...mapActions(useSecuritiesStore, ['fetchSecurity']),
+        ...mapActions(useGlobalStore, ['getFormattedNumber', 'getFormattedDate']),
 
         /**
          * Initializes and fetches data needed for the page.
@@ -203,26 +205,6 @@ export default {
             this.securityTabs = this.$lodash.map(this.securityTabs, (tab) => ({ ...tab, title: this.securitiesI18n.tabs[tab.id] }))
             this.splitButtonActions = this.$lodash.map(this.splitButtonActions, (action) => ({ ...action, label: this.securitiesI18n.buttonActions[action.id] }))
             await this.getSecurityDetails()
-        },
-
-        /**
-         * Formats date to readable format
-         * @param {String} date
-         * @returns {String}
-         */
-        getFormattedDate: function (date) {
-            if (!date) return 'N/A'
-            return new Date(date).toLocaleDateString('en-IN', { year: 'numeric', month: 'short', day: 'numeric' })
-        },
-
-        /**
-         * Formats number to readable format.
-         * @param {Number} number
-         * @returns {*}
-         */
-        getFormattedNumber: function (number) {
-            if (!number && number !== 0) return 'N/A';
-            return new Intl.NumberFormat('en-IN').format(number)
         },
 
         /**

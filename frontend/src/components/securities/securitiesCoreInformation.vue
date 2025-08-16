@@ -116,14 +116,14 @@
                     <div class="detail-row">
                         <div class="label">{{ coreInformationI18n.labels.createdAt }}</div>
                         <div class="value">
-                            {{ getFullFormattedDateTime(security.created_at) }}
+                            {{ getFormattedDateTime(security.created_at) }}
                             <small class="time-ago">({{ getElapsedTime(security.created_at) }})</small>
                         </div>
                     </div>
                     <div class="detail-row">
                         <div class="label">{{ coreInformationI18n.labels.lastUpdated }}</div>
                         <div class="value">
-                            {{ getFullFormattedDateTime(security.updated_at) }}
+                            {{ getFormattedDateTime(security.updated_at) }}
                             <small class="time-ago">({{ getElapsedTime(security.updated_at) }})</small>
                         </div>
                     </div>
@@ -136,7 +136,7 @@
                     <div class="detail-row">
                         <div class="label">{{ coreInformationI18n.labels.lastSync }}</div>
                         <div class="value">
-                            {{ getFullFormattedDateTime(security.updated_at) }}
+                            {{ getFormattedDateTime(security.updated_at) }}
                             <Button icon="ph ph-arrow-clockwise" :label="coreInformationI18n.syncNow" size="small" text></Button>
                         </div>
                     </div>
@@ -147,6 +147,8 @@
 </template>
 
 <script>
+import { mapActions } from 'pinia';
+import { useGlobalStore } from '@/stores/global'
 export default {
     props: {
         security: { type: Object, required: true },
@@ -159,6 +161,7 @@ export default {
         }
     },
     methods: {
+        ...mapActions(useGlobalStore, ['getFormattedDateTime', 'getElapsedTime']),
         /**
          * Copy text to clipboard.
          * @param {String} text
@@ -167,33 +170,6 @@ export default {
             navigator.clipboard.writeText(text).then(() => {
                 this.$toast.add({ severity: 'success', summary: this.$tm('common.copied'), detail: this.$tm('common.textCopiedToClipboard'), life: 2000 });
             })
-        },
-
-        /**
-         * Formats full datetime to readable format.
-         * @param {String} datetime
-         * @returns {String} formattedDate
-         */
-        getFullFormattedDateTime: function (datetime) {
-            if (!datetime) return 'N/A'
-            return new Date(datetime).toLocaleString('en-IN', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit' })
-        },
-
-        /**
-         * Calculates time elapsed.
-         * @param {String} datetime
-         * @returns {String}
-         */
-        getElapsedTime: function (datetime) {
-            if (!datetime) return ''
-            const now = new Date();
-            const date = new Date(datetime);
-            const diffInHours = Math.floor((now - date) / (1000 * 60 * 60));
-
-            if (diffInHours < 1) return 'Just now';
-            if (diffInHours < 24) return `${diffInHours} hours ago`;
-            if (diffInHours < 168) return `${Math.floor(diffInHours / 24)} days ago`;
-            return `${Math.floor(diffInHours / 168)} weeks ago`;
         }
     }
 }

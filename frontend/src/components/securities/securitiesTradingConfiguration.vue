@@ -105,6 +105,8 @@
 </template>
 
 <script>
+import { mapActions } from 'pinia';
+import { useGlobalStore } from '@/stores/global'
 export default {
     props: {
         security: { type: Object, required: true },
@@ -116,6 +118,7 @@ export default {
         }
     },
     methods: {
+        ...mapActions(useGlobalStore, ['getFormattedNumber']),
         /**
         * Calculates minimum trade value
         */
@@ -124,17 +127,7 @@ export default {
             const lotSize = this.security.lot_size || 1;
             const tickSize = parseFloat(this.security.tick_size) || 0.01;
             return this.getFormattedNumber(lotSize * tickSize);
-        },
-
-        /**
-         * Formats number to readable format.
-         * @param {Number} number
-         * @returns {*}
-         */
-        getFormattedNumber: function (number) {
-            if (!number && number !== 0) return 'N/A';
-            return new Intl.NumberFormat('en-IN').format(number)
-        },
+        }
     }
 }
 </script>

@@ -34,7 +34,7 @@
                     <i :class="stat.icon"></i>
                 </div>
                 <div class="stat-content">
-                    <div class="stat-value">{{ formatNumber(stat.value) }}</div>
+                    <div class="stat-value">{{ getFormattedNumber(stat.value) }}</div>
                     <div class="stat-label">{{ stat.title }}</div>
                 </div>
             </div>
@@ -140,6 +140,7 @@
 import { mapState, mapActions } from 'pinia'
 
 import { useSecuritiesStore } from '@/stores/securities'
+import { useGlobalStore } from '@/stores/global'
 import { debounce } from 'lodash'
 export default {
     data() {
@@ -170,6 +171,7 @@ export default {
     },
     methods: {
         ...mapActions(useSecuritiesStore, ['fetchExchanges', 'fetchSecurities', 'fetchSecuritiesStats', 'startImport', 'getImportStatus', 'setValue', 'setPagination', 'setSort', 'clearFilters']),
+        ...mapActions(useGlobalStore, ['getFormattedNumber']),
 
         /**
          * Applies filters
@@ -193,15 +195,6 @@ export default {
         debouncedSearch: debounce(function () {
             this.applyFilters()
         }, 500),
-
-        /**
-         * Utility function to format number.
-         * @param {Number} value
-         */
-        formatNumber: function (value) {
-            if (!value && value !== 0) return ''
-            return new Intl.NumberFormat().format(value)
-        },
 
         /**
          *  Loads the exchanges data in the state.
