@@ -105,7 +105,7 @@
                             <span>{{ slotProps.data.task_type }}</span>
                         </div>
                         <div v-else-if="column.id === 'created_at'" class="date-cell">
-                            {{ getFormattedDate(slotProps.data.created_at) }}
+                            {{ getFormattedDateTime(slotProps.data.created_at) }}
                             <small class="time-ago">({{ getElapsedTime(slotProps.data.created_at) }})</small>
                         </div>
                         <div v-else-if="column.id === 'execution_time'" class="duration-cell">

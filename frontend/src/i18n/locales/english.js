@@ -7,7 +7,11 @@ export const en = {
         viewCharts: 'View Charts',
         search: 'Search ...',
         refresh: 'Refresh',
+        copy: 'Copy',
         clear: 'Clear',
+        retry: 'Retry',
+        export: 'Export',
+        progress: 'Progress',
         cancel: 'Cancel',
         success: 'Success',
         failed: 'Failed',
@@ -439,6 +443,54 @@ export const en = {
                 viewAllContractsSubtitle: 'View existing derivative contracts',
                 expiryManagement: 'Expiry Management',
                 expiryManagementSubtitle: 'Manage contract expiries and rollovers'
+            }
+        },
+        tasksDetails: {
+            superAdmin: 'Super Admin',
+            system: 'System',
+            notStarted: 'Not Started',
+            notCompleted: 'Not Completed',
+            tabs: {
+                details: 'Details',
+                steps: 'Steps',
+                logs: 'Logs',
+                results: 'Results',
+                error: 'Error'
+            },
+            tabDetails: {
+                details: {
+                    basicInformation: 'Basic Information',
+                    taskName: 'Task Name',
+                    celeryTaskID: 'Celery Task ID',
+                    description: 'Description',
+                    currentStep: 'Current Step',
+                    inputParameters: 'Input Parameters'
+                },
+                logs: {
+                    logLevelOptions: {
+                        allLevels: 'All Levels',
+                        DEBUG: 'DEBUG',
+                        INFO: 'INFO',
+                        WARNING: 'WARNING',
+                        ERROR: 'ERROR',
+                        CRITICAL: 'CRITICAL'
+                    }
+                },
+                results: {
+                    taskResults: 'Task Results'
+                },
+                error: {
+                    errorMessage: 'Error Message',
+                    traceback: 'Traceback'
+                }
+            },
+            statistics: {
+                created: 'Created',
+                started: 'Started',
+                completed: 'Completed',
+                duration: 'Duration',
+                retries: 'Retries',
+                user: 'User'
             }
         }
     }
