@@ -39,6 +39,19 @@ const actions = {
     },
 
     /**
+     * Fetch task overview statistics.
+     * @returns {Object} Generic Object
+     */
+    fetchTaskStatistics: async function () {
+        try {
+            const response = await this.$http.get('/api/v1/tasks/stats/overview')
+            return { error: false, data: response }
+        } catch (error) {
+            return { error: true, data: error }
+        }
+    },
+
+    /**
      * Fetch detailed task information including steps and logs
      * @param {String} taskId 
      */

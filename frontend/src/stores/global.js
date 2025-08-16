@@ -65,6 +65,27 @@ const actions = {
         if (diffInHours < 24) return `${diffInHours} hours ago`;
         if (diffInHours < 168) return `${Math.floor(diffInHours / 24)} days ago`;
         return `${Math.floor(diffInHours / 168)} weeks ago`;
+    },
+
+    /**
+     * Returns time in readable format.
+     * @param {String} dateTime
+     * @returns {String}
+     */
+    getFormattedTime: function (dateTime) {
+        if (!dateTime) return 'N/A'
+        return new Date(dateTime).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })
+    },
+
+    /**
+     * Returns calculated percentage.
+     * @param {Number} value
+     * @param {Number} total
+     * @returns {Number}
+     */
+    getPercentage: function (value, total) {
+        if (!total) return 0
+        return Math.round((value / total) * 100)
     }
 }
 

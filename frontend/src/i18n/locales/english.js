@@ -17,6 +17,7 @@ export const en = {
         failed: 'Failed',
         error: 'Error',
         loading: 'Loading ...',
+        processing: 'Processing...',
         activate: 'Activate',
         deactivate: 'Deactivate',
         active: 'Active',
@@ -491,6 +492,24 @@ export const en = {
                 duration: 'Duration',
                 retries: 'Retries',
                 user: 'User'
+            }
+        },
+        tasksStats: {
+            overviewTitle: 'Overview',
+            successRateTitle: 'Success Rate',
+            statusBreakdown: 'Status Breakdown',
+            taskTypes: 'Task Types',
+            currentlyRunningTasks: 'Currently Running Tasks',
+            refreshStatistics: 'Refresh Statistics',
+            overview: {
+                totalTasks: 'Total Tasks',
+                currentlyRunning: 'Currently Running',
+                last24Hours: 'Last 24 Hours',
+                failures: 'Failures (7 days)'
+            },
+            successRate: {
+                successfulTasks: 'Successful Tasks',
+                failedTasks: 'Failed Tasks'
             }
         }
     }

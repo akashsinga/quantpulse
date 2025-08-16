@@ -125,6 +125,7 @@
             </DataTable>
         </div>
 
+        <!-- Task Details Dialog -->
         <Dialog class="task-details-dialog" v-model:visible="showDetailsDialog" modal :style="{ width: '90vw', maxWidth: '1200px' }">
             <template #header>
                 <div class="dialog-header">
@@ -132,6 +133,16 @@
                 </div>
             </template>
             <TaskDetailsComponent v-if="selectedTask" :task="selectedTask" @refresh="refreshTaskDetails" @retry="retryTask" @cancel="cancelTask" @close="showDetailsDialog = false"></TaskDetailsComponent>
+        </Dialog>
+
+        <!-- Task Statistics Dialog -->
+        <Dialog class="stats-dialog" v-model:visible="showStatsDialog" modal :style="{ width: '1000px' }">
+            <template #header>
+                <div class="dialog-header">
+                    <h3>{{ tasksI18n.taskStatistics }}</h3>
+                </div>
+            </template>
+            <TaskStatsComponent v-if="showStatsDialog" @close="showStatsDialog = false"></TaskStatsComponent>
         </Dialog>
     </div>
 </template>
@@ -182,6 +193,7 @@ export default {
             ],
             selectedTask: null,
             showDetailsDialog: false,
+            showStatsDialog: false,
             selectedTasks: [],
             tasksI18n: this.$tm('pages.tasks')
         }
@@ -269,6 +281,18 @@ export default {
         refreshTasks: async function () {
             await this.getTasks()
             this.$toast.add({ severity: 'success', summary: this.$tm('common.success'), detail: this.tasksI18n.messages.refreshSuccessful, life: 2000 })
+        },
+
+        /**
+         * Refresh task details in dialog
+         */
+        refreshTaskDetails: async function () {
+            if (this.selectedTask) {
+                const response = await this.fetchTaskDetails(this.selectedTask.id)
+                if (!response.error) {
+                    this.selectedTask = response.data
+                }
+            }
         },
 
         /**
