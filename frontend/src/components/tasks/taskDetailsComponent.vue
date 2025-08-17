@@ -297,6 +297,16 @@ export default {
         },
 
         /**
+         * Returns class for status severity.
+         * @param {String} status
+         * @returns {String}
+         */
+        getStatusSeverity: function (status) {
+            const severityMap = { 'PENDING': 'secondary', 'RECEIVED': 'info', 'STARTED': 'info', 'PROGRESS': 'info', 'SUCCESS': 'success', 'FAILURE': 'danger', 'CANCELLED': 'warn', 'REVOKED': 'warn' }
+            return severityMap[status] || 'secondary'
+        },
+
+        /**
          * Initializes data needed for the component.
          */
         init: function () {

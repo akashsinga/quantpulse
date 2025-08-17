@@ -1,6 +1,6 @@
 # backend/app/tasks/import_securities.py
 """
-Task for importing securities from Dhan.
+Task for importing securities from Dhan with comprehensive progress tracking.
 Uses DhanService for data fetching/processing and SecurityService for database operations.
 """
 
@@ -21,7 +21,7 @@ logger = get_logger(__name__)
 @celery_app.task(bind=True, base=DatabaseTask, name="import_securities.import_from_dhan")
 def import_securities_from_dhan(self) -> Dict[str, Any]:
     """
-    Import securities from Dhan API and update database with parallel processing.
+    Import securities from Dhan API and update database with comprehensive progress tracking.
     Clean separation: DhanService handles data, SecurityService handles database.
     """
     # Get task ID safely
@@ -32,49 +32,104 @@ def import_securities_from_dhan(self) -> Dict[str, Any]:
         # Update task as started
         self._update_task_status(TaskStatus.STARTED, started_at=start_time, current_message='Starting securities import from Dhan...')
 
-        self._update_progress(0, 'Starting securities import from Dhan...')
         logger.info(f"Starting securities import task {task_id}")
 
         # Initialize services
         dhan_service = DhanService()
         security_service = SecurityService(self.db)
 
-        # Step 1: Test connection
+        # Step 1: Test Connection
+        self.start_step('test_connection', 'Test Dhan API Connection', 'Testing connectivity to Dhan API...')
         self._update_progress(5, 'Testing Dhan API connection...')
-        connection_test = dhan_service.test_connection()
-        logger.info(f"Dhan connection test: {connection_test}")
 
-        # Step 2: Get active exchanges from database
+        try:
+            connection_test = dhan_service.test_connection()
+            self.complete_step('test_connection', 'Connection test successful', connection_test)
+            logger.info(f"Dhan connection test: {connection_test}")
+        except Exception as e:
+            self.fail_step('test_connection', f'Connection test failed: {str(e)}')
+            raise Exception(f"Dhan API connection failed: {str(e)}")
+
+        # Step 2: Get Active Exchanges
+        self.start_step('get_exchanges', 'Get Active Exchanges', 'Retrieving active exchanges from database...')
         self._update_progress(8, 'Getting active exchanges from database...')
-        supported_exchanges = security_service.get_active_exchange_codes()
 
-        if not supported_exchanges:
-            raise Exception("No active exchanges found in database. Please configure exchanges first.")
+        try:
+            supported_exchanges = security_service.get_active_exchange_codes()
+            if not supported_exchanges:
+                raise Exception("No active exchanges found in database. Please configure exchanges first.")
 
-        logger.info(f"Processing securities for exchanges: {supported_exchanges}")
+            self.complete_step('get_exchanges', f'Found {len(supported_exchanges)} active exchanges', {'exchange_count': len(supported_exchanges), 'exchanges': supported_exchanges})
+            logger.info(f"Processing securities for exchanges: {supported_exchanges}")
+        except Exception as e:
+            self.fail_step('get_exchanges', f'Failed to get exchanges: {str(e)}')
+            raise
 
-        # Step 3: Download raw data
+        # Step 3: Download Raw Data
+        self.start_step('download_data', 'Download Securities Master', 'Downloading securities data from Dhan API...')
         self._update_progress(15, 'Downloading securities master from Dhan...')
-        raw_df = dhan_service.download_securities_master_detailed()
-        total_downloaded = len(raw_df)
 
-        # Step 4: Filter securities for active exchanges
+        try:
+            raw_df = dhan_service.download_securities_master_detailed()
+            total_downloaded = len(raw_df)
+
+            self.complete_step('download_data', f'Downloaded {total_downloaded} total records', {'total_downloaded': total_downloaded, 'download_timestamp': datetime.now().isoformat()})
+            self.log_message('INFO', f'Successfully downloaded {total_downloaded} securities from Dhan API')
+        except Exception as e:
+            self.fail_step('download_data', f'Download failed: {str(e)}')
+            raise
+
+        # Step 4: Filter Securities
+        self.start_step('filter_data', 'Filter Securities Data', 'Filtering securities for supported exchanges...')
         self._update_progress(25, f'Filtering securities for exchanges: {", ".join(supported_exchanges)}...')
-        filtered_df = dhan_service.filter_securities_and_futures(raw_df, supported_exchanges)
 
-        # Step 5: Validate and clean data
+        try:
+            filtered_df = dhan_service.filter_securities_and_futures(raw_df, supported_exchanges)
+            total_filtered = len(filtered_df)
+
+            self.complete_step('filter_data', f'Filtered to {total_filtered} relevant securities', {'total_filtered': total_filtered, 'filter_ratio': round((total_filtered / total_downloaded) * 100, 2) if total_downloaded > 0 else 0, 'supported_exchanges': supported_exchanges})
+            self.log_message('INFO', f'Filtered {total_filtered} securities from {total_downloaded} total records')
+        except Exception as e:
+            self.fail_step('filter_data', f'Filtering failed: {str(e)}')
+            raise
+
+        # Step 5: Validate and Clean Data
+        self.start_step('validate_data', 'Validate & Clean Data', 'Validating and cleaning securities data...')
         self._update_progress(30, 'Validating and cleaning securities data...')
-        clean_df = dhan_service.validate_and_clean_data(filtered_df)
 
-        # Step 6: Process data into standardized format
+        try:
+            clean_df = dhan_service.validate_and_clean_data(filtered_df)
+            total_valid = len(clean_df)
+
+            self.complete_step('validate_data', f'Validated {total_valid} clean securities', {'total_valid': total_valid, 'validation_ratio': round((total_valid / total_filtered) * 100, 2) if total_filtered > 0 else 0, 'invalid_count': total_filtered - total_valid})
+            self.log_message('INFO', f'Validation complete: {total_valid} valid securities from {total_filtered} filtered records')
+        except Exception as e:
+            self.fail_step('validate_data', f'Validation failed: {str(e)}')
+            raise
+
+        # Step 6: Process Data
+        self.start_step('process_data', 'Process Securities Data', 'Processing securities into standardized format...')
         self._update_progress(35, 'Processing securities data...')
-        processed_securities = dhan_service.process_securities_data(clean_df)
 
-        # Step 7: Enrich securities with sector information (parallel processing)
+        try:
+            processed_securities = dhan_service.process_securities_data(clean_df)
+            total_processed = len(processed_securities)
+
+            self.complete_step('process_data', f'Processed {total_processed} securities', {'total_processed': total_processed, 'processing_timestamp': datetime.now().isoformat()})
+            self.log_message('INFO', f'Data processing complete: {total_processed} securities ready for database')
+        except Exception as e:
+            self.fail_step('process_data', f'Processing failed: {str(e)}')
+            raise
+
+        # Step 7: Enrich with Sector Information
+        self.start_step('enrich_sectors', 'Enrich Sector Information', 'Enriching securities with sector data...')
         self._update_progress(45, 'Enriching securities with sector information using parallel processing...')
+
         try:
             # Only enrich equity securities, skip others
             equity_securities = [sec for sec in processed_securities if sec['security_type'] == 'EQUITY']
+            enriched_count = 0
+
             if equity_securities:
                 enriched_securities = dhan_service.enrich_securities_with_sector_info(equity_securities, batch_size=15, max_workers=3)
 
@@ -84,27 +139,70 @@ def import_securities_from_dhan(self) -> Dict[str, Any]:
                     if sec['external_id'] in enriched_dict:
                         processed_securities[i] = enriched_dict[sec['external_id']]
 
-                logger.info(f"Enriched {len(enriched_securities)} securities with sector information")
+                enriched_count = len([sec for sec in enriched_securities if sec.get('sector')])
+
+            self.complete_step('enrich_sectors', f'Enriched {enriched_count} securities with sector data', {'total_equity_securities': len(equity_securities), 'enriched_count': enriched_count, 'enrichment_ratio': round((enriched_count / len(equity_securities)) * 100, 2) if equity_securities else 0})
+            self.log_message('INFO', f"Enriched {enriched_count} securities with sector information")
+
         except Exception as e:
-            logger.warning(f"Sector enrichment failed, continuing without it: {e}")
+            self.log_message('WARNING', f"Sector enrichment failed, continuing without it: {e}")
+            # Don't fail the entire task for sector enrichment issues
+            self.update_step_status('enrich_sectors', TaskStatus.SUCCESS, {'enrichment_failed': True, 'error_message': str(e), 'enriched_count': 0})
 
-        # Step 8: Process all securities in database with parallel processing
+        # Step 8: Database Operations
+        self.start_step('database_operations', 'Database Operations', 'Processing securities in database...')
         self._update_progress(60, f'Processing {len(processed_securities)} securities in database using parallel processing...')
-        securities_stats = security_service.process_securities_batch(processed_securities, max_workers=4)
 
-        # Step 9: Mark expired futures as inactive
+        try:
+            securities_stats = security_service.process_securities_batch(processed_securities, max_workers=4)
+
+            self.complete_step('database_operations', 'Database operations completed successfully', securities_stats)
+            self.log_message('INFO', f'Database processing complete: {securities_stats}')
+        except Exception as e:
+            self.fail_step('database_operations', f'Database operations failed: {str(e)}')
+            raise
+
+        # Step 9: Mark Expired Futures
+        self.start_step('expire_futures', 'Mark Expired Futures', 'Marking expired futures as inactive...')
         self._update_progress(85, 'Marking expired futures as inactive...')
-        expired_count = security_service.mark_expired_futures_inactive()
 
-        # Step 10: Update derivatives eligibility
+        try:
+            expired_count = security_service.mark_expired_futures_inactive()
+
+            self.complete_step('expire_futures', f'Marked {expired_count} expired futures as inactive', {'expired_count': expired_count})
+            self.log_message('INFO', f'Marked {expired_count} expired futures as inactive')
+        except Exception as e:
+            self.fail_step('expire_futures', f'Failed to mark expired futures: {str(e)}')
+            raise
+
+        # Step 10: Update Derivatives Eligibility
+        self.start_step('update_derivatives', 'Update Derivatives Eligibility', 'Updating derivatives eligibility flags...')
         self._update_progress(90, 'Updating derivatives eligibility...')
-        derivatives_eligibility_stats = security_service.update_derivatives_eligibility()
 
-        # Step 11: Get final statistics
+        try:
+            derivatives_eligibility_stats = security_service.update_derivatives_eligibility()
+
+            self.complete_step('update_derivatives', 'Derivatives eligibility updated', derivatives_eligibility_stats)
+            self.log_message('INFO', f'Updated derivatives eligibility: {derivatives_eligibility_stats}')
+        except Exception as e:
+            self.fail_step('update_derivatives', f'Failed to update derivatives eligibility: {str(e)}')
+            raise
+
+        # Step 11: Final Statistics
+        self.start_step('final_stats', 'Gather Final Statistics', 'Collecting final import statistics...')
         self._update_progress(95, 'Gathering final statistics...')
-        final_stats = security_service.get_import_statistics()
 
-        # Final results
+        try:
+            final_stats = security_service.get_import_statistics()
+
+            self.complete_step('final_stats', 'Final statistics collected', final_stats)
+            self.log_message('INFO', f'Final database statistics: {final_stats}')
+        except Exception as e:
+            self.fail_step('final_stats', f'Failed to gather statistics: {str(e)}')
+            # Don't fail the entire task for statistics gathering
+            final_stats = {}
+
+        # Calculate final results
         end_time = datetime.now()
         duration = (end_time - start_time).total_seconds()
 
@@ -145,7 +243,7 @@ def import_securities_from_dhan(self) -> Dict[str, Any]:
             'database_stats': final_stats
         }
 
-        # Update task as completed
+        # Final progress update
         self._update_progress(100, 'Securities import completed successfully')
         self._update_task_status(TaskStatus.SUCCESS, completed_at=end_time, result_data=result, execution_time_seconds=int(duration))
 
@@ -156,8 +254,11 @@ def import_securities_from_dhan(self) -> Dict[str, Any]:
         error_msg = f"Securities import failed: {str(e)}"
         logger.error(error_msg, exc_info=True)
 
-        # Update task as failed
+        # Update task as failed with comprehensive error info
         self._update_task_status(TaskStatus.FAILURE, completed_at=datetime.now(), error_message=error_msg, error_traceback=str(e), current_message=error_msg)
+
+        # Log final error
+        self.log_message('ERROR', f'Task failed with error: {error_msg}', {'error_type': type(e).__name__, 'error_details': str(e), 'task_id': task_id})
 
         self.update_state(state='FAILURE', meta={'current': 0, 'total': 100, 'message': error_msg})
         raise
