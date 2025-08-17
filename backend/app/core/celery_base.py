@@ -3,7 +3,7 @@
 from typing import Any, Optional, Dict
 from celery import Task
 import traceback
-from datetime import datetime
+from datetime import datetime, timezone
 
 from app.utils.enum import TaskStatus
 from app.core.database import init_database
@@ -279,11 +279,11 @@ class DatabaseTask(BaseTask):
 
             # Set completion time for terminal statuses
             if status in [TaskStatus.SUCCESS, TaskStatus.FAILURE, TaskStatus.CANCELLED, TaskStatus.REVOKED]:
-                update_fields['completed_at'] = datetime.now()
+                update_fields['completed_at'] = datetime.now(tz=settings.INDIA_TZ)
 
                 # Calculate execution time if started
                 if task_run.started_at:
-                    execution_time = (datetime.now() - task_run.started_at).total_seconds()
+                    execution_time = (datetime.now(tz=settings.INDIA_TZ) - task_run.started_at).total_seconds()
                     update_fields['execution_time_seconds'] = int(execution_time)
 
             task_service = TaskService(self.db)
