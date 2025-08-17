@@ -63,18 +63,6 @@
 
         <!-- Tasks Table -->
         <div class="table-card">
-            <!-- Bulk Actions Toolbar -->
-            <!-- <div v-if="selectedTasks.length > 0" class="bulk-actions-toolbar">
-                <div class="bulk-info">
-                    <span>{{ selectedTasks.length }} tasks selected</span>
-                </div>
-                <div class="bulk-actions">
-                    <Button icon="ph ph-arrow-clockwise" label="Retry Selected" size="small" severity="info" @click="bulkRetryTasks"></Button>
-                    <Button icon="ph ph-pause" label="Cancel Selected" size="small" severity="warn" @click="bulkCancelTasks"></Button>
-                    <Button icon="ph ph-trash" label="Delete Selected" size="small" severity="danger" @click="bulkDeleteTasks"></Button>
-                </div>
-            </div> -->
-
             <DataTable class="tasks-table" v-model:selection="selectedTasks" :value="tasks" :loading="isLoading" :totalRecords="totalRecords" :rows="pagination.limit" :first="pagination.skip" paginator lazy showGridlines sortMode="single" :rowsPerPageOptions="[25, 50, 100]" paginatorTemplate="PrevPageLink CurrentPageReport NextPageLink RowsPerPageDropdown" currentPageReportTemplate="{first} to {last} of {totalRecords}" dataKey="id" :rowHover="true" @page="onPageChange" @sort="onSort">
                 <template #loading>
                     <div class="loading-state">
@@ -195,7 +183,8 @@ export default {
             showDetailsDialog: false,
             showStatsDialog: false,
             selectedTasks: [],
-            tasksI18n: this.$tm('pages.tasks')
+            tasksI18n: this.$tm('pages.tasks'),
+            pollingInterval: null
         }
     },
     computed: {
@@ -370,6 +359,26 @@ export default {
         },
 
         /**
+         * Start polling for running tasks.
+         */
+        startPolling: function () {
+            this.pollingInterval = setInterval(async () => {
+                const runningTasks = this.$lodash.filter(this.tasks, (task) => ['PENDING', 'RECEIVED', 'STARTED', 'PROGRESS'].includes(task.status))
+                runningTasks.length && await this.getTasks()
+            }, 5000)
+        },
+
+        /**
+         * Stop polling
+         */
+        stopPolling: function () {
+            if (this.pollingInterval) {
+                clearInterval(this.pollingInterval)
+                this.pollingInterval = null
+            }
+        },
+
+        /**
          * Initialize page
          */
         init: async function () {
@@ -383,6 +392,9 @@ export default {
     },
     mounted() {
         this.init()
+    },
+    beforeUnmount() {
+        this.stopPolling()
     }
 }
 </script>
