@@ -147,6 +147,35 @@ async def get_security_stats(db=Depends(get_db), current_user=Depends(get_curren
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to fetch securities stats")
 
 
+@router.post("/enrich-sectors", response_model=APIResponse[ImportStatusResponse])
+async def enrich_sectors(force_refresh: bool = Query(False, description="Force refresh all securities even if they have sector data"), db: Session = Depends(get_db), current_user=Depends(get_current_superuser)):
+    """
+    Start sector enrichment from Dhan API.
+    This will run as a background task and return a task ID for monitoring.
+    Only processes EQUITY securities with ISIN that are missing sector data.
+    """
+    try:
+        task_service = TaskService(db)
+
+        # Create task run record
+        task_run = task_service.create_task_run(celery_task_id="", task_name="enrich_sectors", task_type=TaskType.SECTOR_ENRICHMENT, title="Enrich Securities with Sector Data", description=f"Enrich equity securities with sector and industry information from Dhan API (force_refresh={force_refresh})", user_id=current_user.id, input_parameters={"force_refresh": force_refresh})
+
+        # Start the Celery task
+        from app.tasks.enrich_sectors import enrich_sectors_from_dhan
+        celery_task = enrich_sectors_from_dhan.delay(force_refresh=force_refresh)
+
+        # Update task run with Celery task ID
+        task_service.task_run_repo.update(task_run, {"celery_task_id": celery_task.id})
+
+        response_data = ImportStatusResponse(task_id=task_run.id, celery_task_id=celery_task.id, status="PENDING", message="Sector enrichment started successfully", created_at=task_run.created_at)
+
+        return APIResponse(data=response_data, message="Sector enrichment started")
+
+    except Exception as e:
+        logger.error(f"Error starting sector enrichment: {e}")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to start sector enrichment")
+
+
 @router.get("/{security_id}", response_model=APIResponse[SecurityResponse])
 async def get_security(security_id: UUID, db: Session = Depends(get_db), current_user=Depends(get_current_active_user)):
     """Get a specific security by ID."""

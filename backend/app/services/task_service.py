@@ -371,6 +371,10 @@ class TaskService:
         if task_type == TaskType.SECURITIES_IMPORT:
             from app.tasks.import_securities import import_securities_from_dhan
             return import_securities_from_dhan.delay()
+        elif task_type == TaskType.SECTOR_ENRICHMENT:
+            from app.tasks.enrich_sectors import enrich_sectors_from_dhan
+            force_refresh = input_parameters.get('force_refresh', False)
+            return enrich_sectors_from_dhan.delay(force_refresh=force_refresh)
         else:
             raise ValidationError(f"Unknown task type: {task_type}")
 

@@ -84,6 +84,7 @@ class TaskStatus(str, PythonEnum):
 class TaskType(str, PythonEnum):
     """Task type enumeration"""
     SECURITIES_IMPORT = "SECURITIES_IMPORT"
+    SECTOR_ENRICHMENT = "SECTOR_ENRICHMENT"
     DATA_ENRICHMENT = "DATA_ENRICHMENT"
     SYSTEM_MAINTENANCE = "SYSTEM_MAINTENANCE"
     CSV_PROCESSING = "CSV_PROCESSING"

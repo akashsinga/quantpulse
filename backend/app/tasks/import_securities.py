@@ -121,37 +121,9 @@ def import_securities_from_dhan(self) -> Dict[str, Any]:
             self.fail_step('process_data', f'Processing failed: {str(e)}')
             raise
 
-        # Step 7: Enrich with Sector Information
-        self.start_step('enrich_sectors', 'Enrich Sector Information', 'Enriching securities with sector data...')
-        self._update_progress(45, 'Enriching securities with sector information using parallel processing...')
-
-        try:
-            # Only enrich equity securities, skip others
-            equity_securities = [sec for sec in processed_securities if sec['security_type'] == 'EQUITY']
-            enriched_count = 0
-
-            if equity_securities:
-                enriched_securities = dhan_service.enrich_securities_with_sector_info(equity_securities, batch_size=15, max_workers=3)
-
-                # Update the processed securities with enriched data
-                enriched_dict = {sec['external_id']: sec for sec in enriched_securities}
-                for i, sec in enumerate(processed_securities):
-                    if sec['external_id'] in enriched_dict:
-                        processed_securities[i] = enriched_dict[sec['external_id']]
-
-                enriched_count = len([sec for sec in enriched_securities if sec.get('sector')])
-
-            self.complete_step('enrich_sectors', f'Enriched {enriched_count} securities with sector data', {'total_equity_securities': len(equity_securities), 'enriched_count': enriched_count, 'enrichment_ratio': round((enriched_count / len(equity_securities)) * 100, 2) if equity_securities else 0})
-            self.log_message('INFO', f"Enriched {enriched_count} securities with sector information")
-
-        except Exception as e:
-            self.log_message('WARNING', f"Sector enrichment failed, continuing without it: {e}")
-            # Don't fail the entire task for sector enrichment issues
-            self.update_step_status('enrich_sectors', TaskStatus.SUCCESS, {'enrichment_failed': True, 'error_message': str(e), 'enriched_count': 0})
-
-        # Step 8: Database Operations
+        # Step 7: Database Operations
         self.start_step('database_operations', 'Database Operations', 'Processing securities in database...')
-        self._update_progress(60, f'Processing {len(processed_securities)} securities in database using parallel processing...')
+        self._update_progress(45, f'Processing {len(processed_securities)} securities in database using parallel processing...')
 
         try:
             securities_stats = security_service.process_securities_batch(processed_securities, max_workers=4)
@@ -162,9 +134,9 @@ def import_securities_from_dhan(self) -> Dict[str, Any]:
             self.fail_step('database_operations', f'Database operations failed: {str(e)}')
             raise
 
-        # Step 9: Mark Expired Futures
+        # Step 8: Mark Expired Futures
         self.start_step('expire_futures', 'Mark Expired Futures', 'Marking expired futures as inactive...')
-        self._update_progress(85, 'Marking expired futures as inactive...')
+        self._update_progress(70, 'Marking expired futures as inactive...')
 
         try:
             expired_count = security_service.mark_expired_futures_inactive()
@@ -175,9 +147,9 @@ def import_securities_from_dhan(self) -> Dict[str, Any]:
             self.fail_step('expire_futures', f'Failed to mark expired futures: {str(e)}')
             raise
 
-        # Step 10: Update Derivatives Eligibility
+        # Step 9: Update Derivatives Eligibility
         self.start_step('update_derivatives', 'Update Derivatives Eligibility', 'Updating derivatives eligibility flags...')
-        self._update_progress(90, 'Updating derivatives eligibility...')
+        self._update_progress(85, 'Updating derivatives eligibility...')
 
         try:
             derivatives_eligibility_stats = security_service.update_derivatives_eligibility()
@@ -188,7 +160,7 @@ def import_securities_from_dhan(self) -> Dict[str, Any]:
             self.fail_step('update_derivatives', f'Failed to update derivatives eligibility: {str(e)}')
             raise
 
-        # Step 11: Final Statistics
+        # Step 10: Final Statistics (was Step 11)
         self.start_step('final_stats', 'Gather Final Statistics', 'Collecting final import statistics...')
         self._update_progress(95, 'Gathering final statistics...')
 

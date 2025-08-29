@@ -21,6 +21,9 @@ def create_celery_app() -> Celery:
             'import_securities_from_dhan': {
                 'queue': 'securities'
             },
+            'enrich_sectors_from_dhan': {
+                'queue': 'enrichment'
+            }
         },
 
         # Task execution settings
@@ -58,9 +61,7 @@ def create_celery_app() -> Celery:
         worker_log_color=False,
 
         # Add imports for task discovery
-        imports=[
-            'app.tasks.import_securities',
-        ])
+        imports=['app.tasks.import_securities', 'app.tasks.enrich_sectors'])
 
     return celery_app
 
@@ -70,6 +71,7 @@ celery_app = create_celery_app()
 # Import tasks after celery_app is created to avoid circular imports
 try:
     from app.tasks import import_securities
+    from app.tasks import enrich_sectors
     logger.info("Successfully imported task modules")
 except ImportError as e:
     logger.error(f"Failed to import task modules: {e}")
