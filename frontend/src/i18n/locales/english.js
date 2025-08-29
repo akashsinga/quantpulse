@@ -335,6 +335,7 @@ export const en = {
             },
             taskTypes: {
                 SECURITIES_IMPORT: 'Securities Import',
+                SECTOR_ENRICHMENT: 'Sector Enrichment',
                 DATA_ENRICHMENT: 'Data Enrichment',
                 SYSTEM_MAINTENANCE: 'System Maintenance',
                 CSV_PROCESSING: 'CSV Processing',
