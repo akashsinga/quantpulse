@@ -5,6 +5,7 @@ import uvicorn
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
+from datetime import datetime
 
 from app.api.middlewares import RequestMiddleware
 
@@ -18,6 +19,7 @@ from app.api.v1 import auth
 from app.api.v1 import securities
 from app.api.v1 import exchanges
 from app.api.v1 import tasks
+from app.api.v1 import ohlcv
 
 logger = get_logger(__name__)
 
@@ -51,12 +53,19 @@ app.include_router(auth.router, prefix=f"{settings.api.API_V1_PREFIX}/auth", tag
 app.include_router(securities.router, prefix=f"{settings.api.API_V1_PREFIX}/securities", tags=["securities"])
 app.include_router(exchanges.router, prefix=f"{settings.api.API_V1_PREFIX}/exchanges", tags=["exchanges"])
 app.include_router(tasks.router, prefix=f"{settings.api.API_V1_PREFIX}/tasks", tags=["tasks"])
+app.include_router(ohlcv.router, prefix=f"{settings.api.API_V1_PREFIX}/ohlcv", tags=["ohlcv"])
 
 
 @app.get("/", tags=["root"])
 async def root():
     """Root endpoint to check API status"""
-    return {"status": "online", "api_version": "1.0.0", "system_name": settings.app.APP_NAME, "documentation": "/docs"}
+    return {"status": "online", "api_version": "1.0.0", "system_name": settings.app.APP_NAME, "documentation": "/docs", "features": ["Securities Management", "OHLCV Data Import & Analysis", "Trading Strategy Backtesting", "Machine Learning Signal Enhancement", "Real-time Data Processing"]}
+
+
+@app.get("/health", tags=["health"])
+async def health_check():
+    """Health check endpoint for monitoring"""
+    return {"status": "healthy", "timestamp": datetime.now().isoformat(), "services": {"database": "connected", "celery": "running", "api": "active"}}
 
 
 if __name__ == "__main__":

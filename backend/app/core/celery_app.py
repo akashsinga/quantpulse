@@ -23,6 +23,9 @@ def create_celery_app() -> Celery:
             },
             'enrich_sectors_from_dhan': {
                 'queue': 'enrichment'
+            },
+            'import_ohlcv': {
+                'queue': 'securities'
             }
         },
 
@@ -61,7 +64,7 @@ def create_celery_app() -> Celery:
         worker_log_color=False,
 
         # Add imports for task discovery
-        imports=['app.tasks.import_securities', 'app.tasks.enrich_sectors'])
+        imports=['app.tasks.import_securities', 'app.tasks.enrich_sectors', 'app.tasks.import_ohlcv'])
 
     return celery_app
 
@@ -72,6 +75,7 @@ celery_app = create_celery_app()
 try:
     from app.tasks import import_securities
     from app.tasks import enrich_sectors
+    from app.tasks import import_ohlcv
     logger.info("Successfully imported task modules")
 except ImportError as e:
     logger.error(f"Failed to import task modules: {e}")

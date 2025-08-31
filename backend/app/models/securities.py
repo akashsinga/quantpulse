@@ -111,6 +111,9 @@ class Security(BaseModel):
     futures = relationship("Future", back_populates="security", uselist=False, foreign_keys="Future.security_id")
     underlying_futures = relationship("Future", back_populates="underlying", foreign_keys="Future.underlying_id", lazy="dynamic")
 
+    # OHLCV data relationship
+    ohlcv_data = relationship("OHLCVData", back_populates="security", cascade="all, delete-orphan", lazy="dynamic")
+
     def __repr__(self):
         return f"<Security(symbol={self.symbol}, type={self.security_type}, exchange={self.exchange.code if self.exchange else 'N/A'})>"
 
@@ -128,7 +131,7 @@ class Security(BaseModel):
     @property
     def is_stock(self) -> bool:
         """Check if security is a stock."""
-        return self.security_type == SecurityType.STOCK.value
+        return self.security_type == SecurityType.EQUITY.value
 
     @property
     def is_index(self) -> bool:
@@ -138,7 +141,7 @@ class Security(BaseModel):
     @property
     def is_derivative(self) -> bool:
         """Check if security is a derivative."""
-        return self.security_type == SecurityType.DERIVATIVE.value
+        return self.security_type in [SecurityType.FUTSTK.value, SecurityType.FUTIDX.value, SecurityType.OPTSTK.value, SecurityType.OPTIDX.value]
 
     def to_dict(self, include_relationships: bool = False) -> dict:
         """
