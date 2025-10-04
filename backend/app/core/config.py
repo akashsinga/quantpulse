@@ -64,8 +64,9 @@ class AuthSettings(BaseSettings):
 
 class ExternalAPISettings(BaseSettings):
     """External API Configuration Settings"""
-    ACCESS_TOKEN: str = os.getenv("ACCESS_TOKEN", "")
-    CLIENT_ID: str = os.getenv("CLIENT_ID", "")
+    DHAN_ACCESS_TOKEN: str = os.getenv("DHAN_ACCESS_TOKEN", "")
+    DHAN_CLIENT_ID: str = os.getenv("DHAN_CLIENT_ID", "")
+    KITE_API_KEY: str = os.getenv("KITE_API_KEY", "")
 
 
 class LoggingSettings(BaseSettings):

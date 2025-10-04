@@ -25,11 +25,11 @@ class DhanService:
 
     def __init__(self):
         """Initialize Dhan service with credentials validation"""
-        if not settings.external.CLIENT_ID or not settings.external.ACCESS_TOKEN:
-            raise ValidationError("Dhan API credentials not configured", details={"missing_fields": ["CLIENT_ID", "ACCESS_TOKEN"]})
+        if not settings.external.DHAN_CLIENT_ID or not settings.external.DHAN_ACCESS_TOKEN:
+            raise ValidationError("Dhan API credentials not configured", details={"missing_fields": ["DHAN_CLIENT_ID", "DHAN_ACCESS_TOKEN"]})
 
         try:
-            self.dhan_context = dhanhq(settings.external.CLIENT_ID, settings.external.ACCESS_TOKEN)
+            self.dhan_context = dhanhq(settings.external.DHAN_CLIENT_ID, settings.external.DHAN_ACCESS_TOKEN)
             self._lock = threading.Lock()
             logger.info("Dhan service initialized successfully")
         except Exception as e:
