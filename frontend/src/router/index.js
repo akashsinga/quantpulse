@@ -1,13 +1,13 @@
 // frontend/src/router/index.js
 
-import { createRouter, createWebHistory } from 'vue-router'
+import { createRouter, createWebHashHistory } from 'vue-router'
 import { setupNavigationGuards } from './guards'
 
 import authLayout from '@/layouts/authLayout.vue'
 import adminLayout from '@/layouts/adminLayout.vue'
 
 const router = createRouter({
-  history: createWebHistory(import.meta.env.BASE_URL),
+  history: createWebHashHistory(import.meta.env.BASE_URL),
   routes: [
     // Public routes
     { path: '/', name: 'landing', component: () => import('@/pages/landingPage.vue'), meta: { requiresAuth: false, requiresGuest: false, title: 'QuantPulse | Predictive Stock Analytics' } },
@@ -32,7 +32,7 @@ const router = createRouter({
         { path: 'dashboard', name: 'adminDashboard', component: () => import('@/pages/admin/dashboardPage.vue'), meta: { title: 'QuantPulse | Dashboard' } },
         { path: 'securities', name: 'adminSecurities', component: () => import('@/pages/admin/securitiesPage.vue'), meta: { title: 'QuantPulse | Securities' } },
         { path: 'securities/:id', name: 'adminSecurityDetails', component: () => import('@/pages/admin/securityDetailsPage.vue'), meta: { title: 'QuantPulse | Security Details' } },
-        { path: 'tasks', name: 'adminTasks', component: () => import('@/pages/admin/taskspage.vue'), meta: { title: 'QuantPulse | Background Tasks' } }
+        { path: 'tasks', name: 'adminTasks', component: () => import('@/pages/admin/tasksPage.vue'), meta: { title: 'QuantPulse | Background Tasks' } }
       ],
       meta: { requiresAuth: true, requiresSuperuser: true, title: 'QuantPulse | Admin' }
     },
